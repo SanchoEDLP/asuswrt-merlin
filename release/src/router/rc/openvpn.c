@@ -95,6 +95,11 @@ void start_vpnclient(int clientNum)
 		return;
 	}
 
+        // Run prestart custom script on it if it exists
+        sprintf(&buffer[0], "openvpnclient%d.prestart", clientNum);
+        sprintf(&buffer2[0], "/dev/null");
+        run_postconf(&buffer[0], &buffer2[0]);
+
 	sprintf(&buffer[0], "vpn_client%d_state", clientNum);
 	nvram_set(&buffer[0], "1");	//initializing
 	sprintf(&buffer[0], "vpn_client%d_errno", clientNum);
@@ -551,6 +556,11 @@ void start_vpnclient(int clientNum)
 //	try_enabling_fastnat();
 #endif
 
+        // Run poststart custom script on it if it exists
+        sprintf(&buffer[0], "openvpnclient%d.poststart", clientNum);
+        sprintf(&buffer2[0], "/dev/null");
+        run_postconf(&buffer[0], &buffer2[0]);
+
 	vpnlog(VPN_LOG_INFO,"VPN GUI client backend complete.");
 }
 
@@ -559,6 +569,7 @@ void stop_vpnclient(int clientNum)
 	int argc;
 	char *argv[7];
 	char buffer[BUF_SIZE];
+	char buffer2[4000];
 
 	sprintf(&buffer[0], "stop_vpnclient%d", clientNum);
 	if (getpid() != 1) {
@@ -578,6 +589,11 @@ void stop_vpnclient(int clientNum)
 	_eval(argv, NULL, 0, NULL);
 	vpnlog(VPN_LOG_EXTRA,"Done removing cron job");
 
+        // Run prestop custom script on it if it exists
+        sprintf(&buffer[0], "openvpnclient%d.prestop", clientNum);
+        sprintf(&buffer2[0], "/dev/null");
+        run_postconf(&buffer[0], &buffer2[0]);        
+ 
 	// Stop the VPN client
 	vpnlog(VPN_LOG_EXTRA,"Stopping OpenVPN client.");
 	sprintf(&buffer[0], "vpnclient%d", clientNum);
@@ -641,6 +657,12 @@ void stop_vpnclient(int clientNum)
 	nvram_set(&buffer[0], "0");
 
 	//update_resolvconf();	//dnsmasq handled in updown.sh
+
+        // Run poststop custom script on it if it exists
+        sprintf(&buffer[0], "openvpnclient%d.poststop", clientNum);
+        sprintf(&buffer2[0], "/dev/null");
+        run_postconf(&buffer[0], &buffer2[0]);
+
 	//start_dnsmasq(0);
 
 	vpnlog(VPN_LOG_INFO,"VPN GUI client backend stopped.");
@@ -699,6 +721,11 @@ void start_vpnserver(int serverNum)
 		return;
 	}
 
+        // Run prestart custom script on it if it exists
+        sprintf(&buffer[0], "openvpnserver%d.prestart", serverNum);
+        sprintf(&buffer2[0], "/dev/null");
+        run_postconf(&buffer[0], &buffer2[0]);
+	
 	sprintf(&buffer[0], "vpn_server%d_state", serverNum);
 	nvram_set(&buffer[0], "1");	//initializing
 	sprintf(&buffer[0], "vpn_server%d_errno", serverNum);
@@ -1592,6 +1619,11 @@ void start_vpnserver(int serverNum)
 //	try_enabling_fastnat();
 #endif
 
+        // Run poststart custom script on it if it exists
+        sprintf(&buffer[0], "openvpnserver%d.poststart", serverNum);
+        sprintf(&buffer2[0], "/dev/null", serverNum);
+        run_postconf(&buffer[0], &buffer2[0]);
+ 
 	vpnlog(VPN_LOG_INFO,"VPN GUI server backend complete.");
 }
 
@@ -1600,12 +1632,18 @@ void stop_vpnserver(int serverNum)
 	int argc;
 	char *argv[9];
 	char buffer[BUF_SIZE];
+	char buffer2[4000];
 
 	sprintf(&buffer[0], "stop_vpnserver%d", serverNum);
 	if (getpid() != 1) {
 		notify_rc(&buffer[0]);
 		return;
 	}
+
+        // Run prestop custom script on it if it exists
+        sprintf(&buffer[0], "openvpnserver%d.prestop", serverNum);
+        sprintf(&buffer2[0], "/dev/null");
+        run_postconf(&buffer[0], &buffer2[0]);
 
 	vpnlog(VPN_LOG_INFO,"Stopping VPN GUI server backend.");
 
@@ -1679,6 +1717,11 @@ void stop_vpnserver(int serverNum)
 	nvram_set(&buffer[0], "0"); 
 	sprintf(&buffer[0], "vpn_server%d_errno", serverNum); 
 	nvram_set(&buffer[0], "0"); 
+
+        // Run poststop custom script on it if it exists
+        sprintf(&buffer[0], "openvpnserver%d.poststop", serverNum);
+        sprintf(&buffer2[0], "/dev/null");
+        run_postconf(&buffer[0], &buffer2[0]);
 
 	vpnlog(VPN_LOG_INFO,"VPN GUI server backend stopped.");
 }
