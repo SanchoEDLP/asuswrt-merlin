@@ -259,8 +259,15 @@ int main(int argc, char *argv[])
 			fprintf(fp, "guest only = yes\n");
 		}
 #else
+#if defined(RTCONFIG_SAMBA36X) || defined(RTCONFIG_SAMBA_MODERN)
+		fprintf(fp, "auth methods = guest\n");
+		fprintf(fp, "guest account = admin\n");
+		fprintf(fp, "map to guest = Bad Password\n");
+		fprintf(fp, "guest ok = yes\n");
+#else
 		fprintf(fp, "security = SHARE\n");
 		fprintf(fp, "guest only = yes\n");
+#endif
 #endif
 	}
 	else{
@@ -270,8 +277,8 @@ int main(int argc, char *argv[])
 
 	fprintf(fp, "encrypt passwords = yes\n");
 	fprintf(fp, "pam password change = no\n");
-	fprintf(fp, "null passwords = yes\n");		// ASUS add
-#ifdef RTCONFIG_SAMBA_MODERN
+//	fprintf(fp, "null passwords = yes\n");		// ASUS add (remove deprecated)
+#if defined(RTCONFIG_SAMBA36X) || defined(RTCONFIG_SAMBA_MODERN)
 	if (nvram_get_int("smbd_enable_smb2"))
 		fprintf(fp, "max protocol = SMB2\n");
 	else
@@ -302,18 +309,22 @@ int main(int argc, char *argv[])
 
         /* remove socket options due to NIC compatible issue */
 	if(!nvram_get_int("stop_samba_speedup")){
-#ifdef RTCONFIG_BCMARM
+#if defined(RTCONFIG_BCMARM)
 #ifdef RTCONFIG_BCM_7114
 		fprintf(fp, "socket options = IPTOS_LOWDELAY TCP_NODELAY SO_RCVBUF=131072 SO_SNDBUF=131072\n");
-#endif
 #else
 		fprintf(fp, "socket options = TCP_NODELAY SO_KEEPALIVE SO_RCVBUF=65536 SO_SNDBUF=65536\n");
+#endif
+#else
+#if defined(RTCONFIG_SAMBA36X) || defined(RTCONFIG_SAMBA_MODERN)
+		fprintf(fp, "socket options = TCP_NODELAY SO_KEEPALIVE\n");
+#endif
 #endif
 	}
 	fprintf(fp, "obey pam restrictions = no\n");
 //	fprintf(fp, "use spnego = no\n");		// ASUS add
 //	fprintf(fp, "client use spnego = no\n");	// ASUS add
-//	fprintf(fp, "client use spnego = yes\n");  // ASUS add
+//	fprintf(fp, "client use spnego = yes\n");	// ASUS add
 	fprintf(fp, "disable spoolss = yes\n");		// ASUS add
 	fprintf(fp, "host msdfs = no\n");		// ASUS add
 	fprintf(fp, "strict allocate = No\n");		// ASUS add

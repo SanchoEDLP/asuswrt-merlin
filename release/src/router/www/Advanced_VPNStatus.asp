@@ -30,6 +30,8 @@ client1stt = '<% nvram_get("vpn_client1_state"); %>';
 client2pid = '<% sysinfo("pid.vpnclient2"); %>';
 client2stt = '<% nvram_get("vpn_client2_state"); %>';
 pptpdpid = '<% sysinfo("pid.pptpd"); %>';
+client1blk = '<% nvram_get("vpn_client1_block"); %>';
+client2blk = '<% nvram_get("vpn_client2_block"); %>';
 
 var overlib_str0 = new Array();	//Viz add 2013.04 for record longer VPN client username/pwd
 var overlib_str1 = new Array();	//Viz add 2013.04 for record longer VPN client username/pwd
@@ -39,7 +41,8 @@ vpnc_clientlist_array = decodeURIComponent('<% nvram_char_to_ascii("","vpnc_clie
 function initial(){
 	var state_r = " - Running";
 	var state_i = " - Connecting...";
-	var state_s = " - <span style=\"background-color: transparent; color: white;\">Stopped</span>";
+	var state_s = "<span style=\"background-color: transparent; color: white;\"> - Stopped</span>";
+	var state_b = "<span style=\"background-color: transparent; color: red;\"> - VPN Clients Blocked</span>";
 
 	show_menu();
 
@@ -59,7 +62,9 @@ function initial(){
 				$("client1_Block_Running").innerHTML = state_i;
 		} else
 			$("client1_Block_Running").innerHTML = state_s;
-
+		if (client1blk == 1)
+			$("client1_Block_Running").innerHTML += state_b;
+		
 		if (server2pid > 0) {
 			if (server2stt == 2)
 				$("server2_Block_Running").innerHTML = state_r;
@@ -75,8 +80,9 @@ function initial(){
 				$("client2_Block_Running").innerHTML = state_i;
 		} else
 			$("client2_Block_Running").innerHTML = state_s;
-
-        
+		if (client2blk == 1)
+			$("client2_Block_Running").innerHTML += state_b;
+		
 		parseStatus(document.form.status_server1.value, "server1_Block");
 		parseStatus(document.form.status_client1.value, "client1_Block");
 		parseStatus(document.form.status_server2.value, "server2_Block");

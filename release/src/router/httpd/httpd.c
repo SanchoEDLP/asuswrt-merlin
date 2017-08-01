@@ -104,7 +104,8 @@ typedef union {
 #include "queue.h"
 #define MAX_CONN_ACCEPT 64
 #define MAX_CONN_TIMEOUT 60
-#define MAX_DISC_TIMEOUT 15
+/* #define MAX_DISC_TIMEOUT 15 */
+#define max_disc_timeout() ((nvram_get_int("reboot_time") / 2) + 10)
 
 typedef struct conn_item {
 	TAILQ_ENTRY(conn_item) entry;
@@ -237,10 +238,11 @@ int change_passwd = 0;
 int reget_passwd = 0;
 int x_Setting = 0;
 int skip_auth = 0;
-int isLogout = 0;
 char url[128];
 char cloud_file[128];
 int http_port;
+unsigned int logout_hst[8];
+unsigned int login_hst[8];
 
 /* Added by Joey for handle one people at the same time */
 unsigned int login_ip=0; // the logined ip
@@ -436,7 +438,8 @@ auth_check( char* dirname, char* authorization ,char* url)
 {
 	char authinfo[500];
 	char* authpass;
-	int l;
+	int i,l;
+	int login_auth_req, logout_auth_req, login_auth_index;
 	struct in_addr temp_ip_addr;
 	char *temp_ip_str;
 	time_t dt;
@@ -445,11 +448,46 @@ auth_check( char* dirname, char* authorization ,char* url)
 	temp_ip_addr.s_addr = login_ip_tmp;
 	temp_ip_str = inet_ntoa(temp_ip_addr);
 
-	if(isLogout == 1){
-		isLogout = 0;
-		send_authenticate( dirname );
-		// Send login msg to syslog
-		//logmessage(HEAD_HTTP_LOGIN, "login user %s", temp_ip_str);
+	login_auth_req = 1;
+	login_auth_index = -1;
+	for (i=0; i<ARRAY_SIZE(login_hst); i++) { //check if ever logged in
+		if (login_hst[i] != 0 && login_hst[i] == login_ip_tmp)
+		{
+			login_auth_req = 0;
+			break;
+		}
+		if (login_hst[i] == 0)
+		{
+			login_auth_index = i;
+			break;
+		}
+	}
+	if (nvram_get_int("login_ip_restart") == login_ip_tmp)
+		login_auth_req = 0;
+	nvram_unset("login_ip_restart"); //clear ip from last reboot or upgrade
+
+	logout_auth_req = -1;
+	for (i=0; i<ARRAY_SIZE(logout_hst); i++) { // check if logged out
+		if (logout_hst[i] != 0 && logout_hst[i] == login_ip_tmp)
+		{
+			logout_auth_req = i;
+			break;
+		}
+	}
+	if ( login_ip == 0 && (logout_auth_req >= 0 || login_auth_req == 1) ) {
+		if (nvram_get_int("debug_httpd") & 2) {
+			if (logout_auth_req >= 0)
+				_dprintf("httpd logout auth forced for %u, array location %i\n", login_ip_tmp, logout_auth_req);
+			if (login_auth_req == 1)
+				_dprintf("httpd login auth forced for %u\n", login_ip_tmp);
+		}
+		send_authenticate(dirname);
+		last_login_ip = 0;
+		logout_hst[logout_auth_req] = 0; //clear ip from active logouts
+		if (login_auth_index == -1) //overflow array failsafe, overwrite oldest entry
+			login_hst[0] = login_ip_tmp;
+		else
+			login_hst[login_auth_index] = login_ip_tmp; //update logins
 		return 0;
 	}
 
@@ -501,15 +539,8 @@ auth_check( char* dirname, char* authorization ,char* url)
 	/* Is this the right user and password? */
 	if ( strcmp( auth_userid, authinfo ) == 0 && strcmp( auth_passwd, authpass ) == 0)
 	{
-		//fprintf(stderr, "login check : %x %x\n", login_ip, last_login_ip);
-		/* Is this is the first login after logout */
-		//if (login_ip==0 && last_login_ip==login_ip_tmp)
-		//{
-		//	send_authenticate(dirname);
-		//	last_login_ip=0;
-		//	return 0;
-		//}
-		if ( login_ip == 0 || last_login_ip != 0 || login_ip != login_ip_tmp ) {
+		if ( login_ip == 0 || last_login_ip != 0 || login_ip != login_ip_tmp )
+		{
 			// Send login msg to syslog
 			logmessage(HEAD_HTTP_LOGIN, "login '%s' successful from %s:%d", authinfo, temp_ip_str, http_port);
 		}
@@ -961,7 +992,8 @@ handle_request(void)
 			cp += strspn( cp, " \t" );
 			useragent = cp;
 			cur = cp + strlen(cp) + 1;
-			//_dprintf("httpd user-agent = %s\n", useragent);
+			//if (nvram_get_int("debug_httpd") & 1)
+			//	_dprintf("httpd user-agent = %s\n", useragent);
 		}
 		else if ( strncasecmp( cur, "Referer:", 8 ) == 0 )
 		{
@@ -969,7 +1001,8 @@ handle_request(void)
 			cp += strspn( cp, " \t" );
 			referer = cp;
 			cur = cp + strlen(cp) + 1;
-			_dprintf("httpd referer = %s\n", referer);
+			if (nvram_get_int("debug_httpd") & 1)
+				_dprintf("httpd referer = %s\n", referer);
 		}
 		else if ( strncasecmp( cur, "Host:", 5 ) == 0 )
 		{
@@ -977,7 +1010,8 @@ handle_request(void)
 			cp += strspn( cp, " \t" );
 			sethost(cp);
 			cur = cp + strlen(cp) + 1;
-			_dprintf("httpd host = %s\n", host_name);
+			if (nvram_get_int("debug_httpd") & 1)
+				_dprintf("httpd host = %s\n", host_name);
 		}
 		else if (strncasecmp( cur, "Content-Length:", 15 ) == 0) {
 			cp = &cur[15];
@@ -1032,13 +1066,17 @@ handle_request(void)
 	}
 // 2007.11 James. }
 
+	if (nvram_get_int("debug_httpd") & 1)
+		_dprintf("httpd url: %s file: %s\n", url, file);
+
 	if(strncmp(url, APPLYAPPSTR, strlen(APPLYAPPSTR))==0)  fromapp=1;
 	else if(strncmp(url, GETAPPSTR, strlen(GETAPPSTR))==0)  {
 		fromapp=1;
 		strlcpy(url, url+strlen(GETAPPSTR), sizeof(url));
 		file += strlen(GETAPPSTR);
 	}
-	//_dprintf("fromapp(url): %i\n", fromapp);
+	if (nvram_get_int("debug_httpd") & 1)
+		_dprintf("fromapp(url): %i\n", fromapp);
 
 	memset(user_agent, 0, sizeof(user_agent));
 	if(useragent != NULL)
@@ -1047,9 +1085,8 @@ handle_request(void)
 		strcpy(user_agent, "");
 
 	fromapp = check_user_agent(useragent);
-	//_dprintf("fromapp(check_user_agent): %i\n", fromapp);
-
-	_dprintf("httpd url: %s file: %s\n", url, file);
+	if (nvram_get_int("debug_httpd") & 1)
+		_dprintf("fromapp(check_user_agent): %i\n", fromapp);
 
 	http_login_timeout(login_ip_tmp);
 	set_referer_host();
@@ -1117,7 +1154,8 @@ handle_request(void)
 				else {
 					if(do_referer&CHECK_REFERER){
 						referer_result = referer_check(referer, fromapp);
-						_dprintf("referer_result(check): %i, referer: %s fromapp: %i\n", referer_result, referer, fromapp);
+						if (nvram_get_int("debug_httpd") & 1)
+							_dprintf("referer_result(check): %i, referer: %s fromapp: %i\n", referer_result, referer, fromapp);
 						if(referer_result != 0){
 							if(strcasecmp(method, "post") == 0){
 								if (handler->input) {
@@ -1133,7 +1171,8 @@ handle_request(void)
 					handler->auth(auth_userid, auth_passwd, auth_realm);
 					if (!auth_check(auth_realm, authorization, url))
 					{
-						_dprintf("referer_result(auth): realm: %s url: %s\n", auth_realm, url);
+						if (nvram_get_int("debug_httpd") & 1)
+							_dprintf("referer_result(auth): realm: %s url: %s\n", auth_realm, url);
 						if(strcasecmp(method, "post") == 0){
 							if (handler->input) {
 								handler->input(file, conn_fp, cl, boundary);
@@ -1157,7 +1196,8 @@ handle_request(void)
 			}else{
 				if(fromapp == 0 && (do_referer&CHECK_REFERER)){
 					referer_result = check_noauth_referrer(referer, fromapp);
-					_dprintf("referer_result(noauth): %i, referer: %s fromapp: %i\n", referer_result, referer, fromapp);
+					if (nvram_get_int("debug_httpd") & 1)
+						_dprintf("referer_result(noauth): %i, referer: %s fromapp: %i\n", referer_result, referer, fromapp);
 					if(referer_result != 0){
 						if(strcasecmp(method, "post") == 0){
 							if (handler->input) {
@@ -1239,7 +1279,6 @@ handle_request(void)
 			temp_ip_addr.s_addr = login_ip_tmp;
 			temp_ip_str = inet_ntoa(temp_ip_addr);
 
-			isLogout = 1;
 			http_logout(login_ip_tmp);
 			// Send logout msg to syslog
 			logmessage (HEAD_HTTP_LOGIN, "logout successful %s:%d", temp_ip_str, http_port);
@@ -1316,7 +1355,8 @@ void http_login(unsigned int ip, char *url) {
 	nvram_set("login_timestamp", login_timestampstr);
 
 	if(ip != login_ip || http_port != login_port) {
-		_dprintf("httpd_login(%u:%i)\n", ip, http_port);
+		if (nvram_get_int("debug_httpd") & 2)
+			_dprintf("httpd_login(%u:%i)\n", ip, http_port);
 
 		login_ip = ip;
 		last_login_ip = 0;
@@ -1406,7 +1446,7 @@ void http_login_timeout(unsigned int ip)
 // 2007.10 James. for really logout. {
 	//if (login_ip!=ip && (unsigned long)(now-login_timestamp) > 60) //one minitues
 //	if (((login_ip != 0 && login_ip != ip) || (login_port != http_port || !login_port)) && ((unsigned long)(now-login_ts) > 60)) //one minitues
-	if (((login_ip != 0 && login_ip != ip) || ((login_port != http_port) && login_port)) && ((unsigned long)(now-login_ts) > MAX_DISC_TIMEOUT))
+	if (((login_ip != 0 && login_ip != ip) || ((login_port != http_port) && login_port)) && ((unsigned long)(now-login_ts) > max_disc_timeout()))
 // 2007.10 James }
 	{
 		http_logout(login_ip);
@@ -1422,9 +1462,22 @@ void http_logout(unsigned int ip)
 	unsigned int login_port = nvram_get_int("login_port");
 	unsigned int http_lanport = nvram_get_int("http_lanport");
 	unsigned int https_lanport = nvram_get_int("https_lanport");
+	int i;
 
-	if ((ip == login_ip && (login_port == http_lanport || login_port == https_lanport || !login_port)) || ip == 0 ) {
-		_dprintf("httpd_logout(%u:%i)\n", ip, http_port);
+	if (ip == login_ip && (login_port == http_lanport || login_port == https_lanport || !login_port)) {
+		if (nvram_get_int("debug_httpd") & 2)
+			_dprintf("httpd_logout(%u:%i)\n", ip, http_port);
+		for (i=0; i<ARRAY_SIZE(logout_hst); i++) {
+			if (logout_hst[i] == 0) {
+				logout_hst[i] = ip; // save ip needing re-authorization
+				if (nvram_get_int("debug_httpd") & 2)
+					_dprintf("httpd re-auth set for %u, array location %i\n", ip, i);
+				break;
+			}
+		}
+		if (i>=ARRAY_SIZE(logout_hst)) //overflow array failsafe, overwrite oldest entry
+			logout_hst[0] = ip;
+
 		last_login_ip = login_ip;
 		login_ip = 0;
 		login_timestamp = 0;

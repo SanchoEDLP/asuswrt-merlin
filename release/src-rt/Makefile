@@ -368,9 +368,22 @@ what:
 
 define RouterOptions
 	@( \
-	if [ "$(CONFIG_LINUX26)" = "y" ] || [ "$(SAMBA3)" = "y" ]; then \
-		sed -i "/RTCONFIG_SAMBA3/d" $(1); \
-		echo "RTCONFIG_SAMBA3=y" >>$(1); \
+	if [ "$(CONFIG_LINUX26)" = "y" ] ; then \
+		if [ "$(SAMBA3)" = "3.6.x" ]; then \
+			sed -i "/RTCONFIG_SAMBA36X/d" $(1); \
+			echo "RTCONFIG_SAMBA36X=y" >>$(1); \
+			sed -i "/RTCONFIG_SAMBA3\>/d" $(1); \
+			echo "# RTCONFIG_SAMBA3 is not set" >>$(1); \
+		else \
+			sed -i "/RTCONFIG_SAMBA36X/d" $(1); \
+			echo "# RTCONFIG_SAMBA36X is not set" >>$(1); \
+			sed -i "/RTCONFIG_SAMBA3\>/d" $(1); \
+			echo "RTCONFIG_SAMBA3=y" >>$(1); \
+		fi; \
+	fi; \
+	if [ "$(SAMBA36)" = "y" ]; then \
+		sed -i "/RTCONFIG_SAMBA_MODERN/d" $(1); \
+		echo "RTCONFIG_SAMBA_MODERN=y" >>$(1); \
 	fi; \
 	sed -i "/RTCONFIG_EMF/d" $(1); \
 	if [ "$(CONFIG_LINUX26)" = "y" ]; then \
@@ -1013,6 +1026,13 @@ define RouterOptions
 	if [ "$(PROTECTION_SERVER)" = "y" ]; then \
 		sed -i "/RTCONFIG_PROTECTION_SERVER/d" $(1); \
 		echo "RTCONFIG_PROTECTION_SERVER=y" >>$(1); \
+	fi; \
+	if [ "$(UPNPIGD2)" = "y" ]; then \
+		sed -i "/RTCONFIG_IGD2/d" $(1); \
+		echo "RTCONFIG_IGD2=y" >>$(1); \
+	else \
+		sed -i "/RTCONFIG_IGD2/d" $(1); \
+		echo "# RTCONFIG_IGD2 is not set" >>$(1); \
 	fi; \
 	)
 	$(call platformRouterOptions, $(1))

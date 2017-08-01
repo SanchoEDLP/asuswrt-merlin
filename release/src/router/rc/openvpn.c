@@ -486,6 +486,11 @@ void start_vpnclient(int clientNum)
 		fp = fopen(&buffer[0], "w");
 		chmod(&buffer[0], S_IRUSR|S_IWUSR|S_IXUSR);
 		fprintf(fp, "#!/bin/sh\n");
+		sprintf(&buffer[0], "vpn_client%d_proto", clientNum);
+		strncpy(&buffer[0], nvram_safe_get(&buffer[0]), BUF_SIZE);
+		fprintf(fp, "iptables -I INPUT -p %s ", strtok(&buffer[0], "-"));
+		sprintf(&buffer[0], "vpn_client%d_port", clientNum);
+		fprintf(fp, "--dport %d -j ACCEPT\n", nvram_get_int(&buffer[0]));
 		fprintf(fp, "iptables -I INPUT -i %s -j ACCEPT\n", &iface[0]);
 		fprintf(fp, "iptables -I FORWARD %d -i %s -j ACCEPT\n", (nvram_match("cstats_enable", "1") ? 4 : 2), &iface[0]);
 		if (nvram_match("ctf_disable", "0")) {
@@ -515,6 +520,8 @@ void start_vpnclient(int clientNum)
 	}
 
 	// Start the VPN client
+	sprintf(&buffer[0], "vpn_client%d_enabled", clientNum);
+	nvram_set(&buffer[0], "1");
 #ifdef RTCONFIG_BCMARM
         if (cpu_num > 1)
 		sprintf(&buffer[0], "taskset -c %d /etc/openvpn/vpnclient%d --cd /etc/openvpn/client%d --config config.ovpn", (clientNum % 2 ? 1 : 0), clientNum, clientNum);
@@ -594,6 +601,8 @@ void stop_vpnclient(int clientNum)
  
 	// Stop the VPN client
 	vpnlog(VPN_LOG_EXTRA,"Stopping OpenVPN client.");
+	sprintf(&buffer[0], "vpn_client%d_enabled", clientNum);
+	nvram_set(&buffer[0], "0");
 	sprintf(&buffer[0], "vpnclient%d", clientNum);
 	if ( !ovpn_waitfor(&buffer[0]) )
 		vpnlog(VPN_LOG_EXTRA,"OpenVPN client stopped.");
@@ -1780,6 +1789,8 @@ void start_vpn_eas()
 		}
 
 		// Setup client routing in case some are set to be blocked when tunnel is down
+		sprintf(&buffer[0], "vpn_client%d_enabled", nums[i]);
+		nvram_set(&buffer[0], "1");
 		update_vpnrouting(nums[i]);
 
 		// Start client
@@ -1862,7 +1873,7 @@ void run_vpn_firewall_scripts()
 	DIR *dir;
 	struct dirent *file;
 	char *fn;
-	char *argv[3];
+	char *argv[8];
 
 	if ( chdir("/etc/openvpn/fw") )
 		return;
@@ -1875,6 +1886,23 @@ void run_vpn_firewall_scripts()
 		fn = file->d_name;
 		if ( fn[0] == '.' )
 			continue;
+		// Remove existing firewall rules if they exist
+		vpnlog(VPN_LOG_EXTRA,"Removing existing firewall rules: %s", fn);
+		argv[0] = "sed";
+		argv[1] = "s/-A/-D/g;s/-I/-D/g;s/FORWARD\\ [0-9]\\ /FORWARD\\ /g";
+		argv[2] = fn;
+		argv[3] = ">";
+		argv[4] = "/etc/openvpn/fw/clear-fw-tmp.sh";
+		argv[5] = NULL;
+		if (!_eval(argv, NULL, 0, NULL))
+		{
+			argv[0] = "/etc/openvpn/fw/clear-fw-tmp.sh";
+			argv[1] = NULL;
+			_eval(argv, NULL, 0, NULL);
+		}
+		unlink("/etc/openvpn/fw/clear-fw-tmp.sh");
+
+		// Add firewall rules
 		vpnlog(VPN_LOG_INFO,"Running firewall script: %s", fn);
 		argv[0] = "/bin/sh";
 		argv[1] = fn;

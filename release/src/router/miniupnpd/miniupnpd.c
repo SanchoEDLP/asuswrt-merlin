@@ -1,4 +1,4 @@
-/* $Id: miniupnpd.c,v 1.206 2015/01/17 11:26:04 nanard Exp $ */
+/* $Id: miniupnpd.c,v 1.213 2015/12/16 10:21:49 nanard Exp $ */
 /* MiniUPnP project
  * http://miniupnp.free.fr/ or http://miniupnp.tuxfamily.org/
  * (c) 2006-2015 Thomas Bernard
@@ -33,7 +33,6 @@
 #include <sys/file.h>
 #include <syslog.h>
 #include <sys/time.h>
-#include <sys/stat.h> //from tomato
 #include <time.h>
 #include <signal.h>
 #include <errno.h>
@@ -183,14 +182,14 @@ tomato_load(void)
 		current_time = time(NULL);
 		s[sizeof(s) - 1] = 0;
 		while (fgets(s, sizeof(s) - 1, f)) {
-			if (sscanf(s, "%3s %hu %31s %hu [%*s] %u", proto, &eport, iaddr, &iport, &timestamp) >= 4)
+			if (sscanf(s, "%3s %hu %31s %hu [%*[^]]] %u", proto, &eport, iaddr, &iport, &timestamp) >= 4)
 			{
 				if (((a = strchr(s, '[')) != NULL) && ((b = strrchr(a, ']')) != NULL))
 				{
 					if (timestamp > 0)
 					{
 						if (timestamp > current_time)
-							leaseduration = current_time - timestamp;
+							leaseduration = timestamp - current_time;
 						else
 							continue;
 					}
@@ -200,6 +199,8 @@ tomato_load(void)
 					}
 					*b = 0;
 					rhost = NULL;
+					syslog(LOG_DEBUG, "Read redirection [%s] from file: %s port %hu to %s port %hu, timestamp: %u (%u)",
+						a + 1, proto, eport, iaddr, iport, timestamp, leaseduration);
 					upnp_redirect(rhost, eport, iaddr, iport, proto, a + 1, leaseduration);
 				}
 			}
@@ -371,6 +372,19 @@ OpenAndConfHTTPSocket(unsigned short * port)
 	listenname_len =  sizeof(struct sockaddr_in);
 #endif
 
+#if defined(SO_BINDTODEVICE) && !defined(MULTIPLE_EXTERNAL_IP)
+	/* One and only one LAN interface */
+	if(lan_addrs.lh_first != NULL && lan_addrs.lh_first->list.le_next == NULL
+	   && strlen(lan_addrs.lh_first->ifname) > 0)
+	{
+		if(setsockopt(s, SOL_SOCKET, SO_BINDTODEVICE,
+		              lan_addrs.lh_first->ifname,
+		              strlen(lan_addrs.lh_first->ifname)) < 0)
+			syslog(LOG_WARNING, "setsockopt(http, SO_BINDTODEVICE, %s): %m",
+			       lan_addrs.lh_first->ifname);
+	}
+#endif /* defined(SO_BINDTODEVICE) && !defined(MULTIPLE_EXTERNAL_IP) */
+
 #ifdef ENABLE_IPV6
 	if(bind(s,
 	        ipv6 ? (struct sockaddr *)&listenname6 : (struct sockaddr *)&listenname4,
@@ -442,7 +456,9 @@ ProcessIncomingHTTP(int shttpl, const char * protocol)
 		char addr_str[64];
 
 		sockaddr_to_string((struct sockaddr *)&clientname, addr_str, sizeof(addr_str));
-		syslog(LOG_INFO, "%s connection from %s", protocol, addr_str);
+#ifdef DEBUG
+		syslog(LOG_DEBUG, "%s connection from %s", protocol, addr_str);
+#endif /* DEBUG */
 		if(get_lan_for_peer((struct sockaddr *)&clientname) == NULL)
 		{
 			/* The peer is not a LAN ! */
@@ -483,6 +499,7 @@ ProcessIncomingHTTP(int shttpl, const char * protocol)
 #else
 				tmp->clientaddr = clientname.sin_addr;
 #endif
+				memcpy(tmp->clientaddr_str, addr_str, sizeof(tmp->clientaddr_str));
 				return tmp;
 			}
 			else
@@ -1178,6 +1195,9 @@ init(int argc, char * * argv, struct runtime_vars * v)
 			case UPNPNATCHAIN:
 				miniupnpd_nat_chain = ary_options[i].value;
 				break;
+			case UPNPNATPOSTCHAIN:
+				miniupnpd_nat_postrouting_chain = ary_options[i].value;
+				break;
 #endif	/* USE_NETFILTER */
 			case UPNPNOTIFY_INTERVAL:
 				v->notify_interval = atoi(ary_options[i].value);
@@ -1488,7 +1508,7 @@ init(int argc, char * * argv, struct runtime_vars * v)
 #else	/* #ifndef MULTIPLE_EXTERNAL_IP */
 			if(i+2 < argc)
 			{
-				char *val=calloc((strlen(argv[i+1]) + strlen(argv[i+2]) + 1), sizeof(char));
+				char *val = calloc((strlen(argv[i+1]) + strlen(argv[i+2]) + 2), sizeof(char));
 				if (val == NULL)
 				{
 					fprintf(stderr, "memory allocation error for listen address storage\n");
@@ -1877,7 +1897,7 @@ main(int argc, char * * argv)
 			shttpl_v4 =  OpenAndConfHTTPSocket(&listen_port, 0);
 			if(shttpl_v4 < 0)
 			{
-				syslog(LOG_ERR, "Failed to open socket for HTTP on port %hu (IPv4). EXITING", v.port);
+				syslog(LOG_ERR, "Failed to open socket for HTTP on port %d (IPv4). EXITING", v.port);
 				return 1;
 			}
 		}
@@ -1901,13 +1921,14 @@ main(int argc, char * * argv)
 		shttpsl_v4 =  OpenAndConfHTTPSocket(&listen_port, 0);
 		if(shttpsl_v4 < 0)
 		{
-			syslog(LOG_ERR, "Failed to open socket for HTTPS on port %hu (IPv4). EXITING", v.https_port);
+			syslog(LOG_ERR, "Failed to open socket for HTTPS on port %d (IPv4). EXITING", v.https_port);
 			return 1;
 		}
 #endif /* V6SOCKETS_ARE_V6ONLY */
 #endif /* ENABLE_HTTPS */
 #ifdef ENABLE_IPV6
-		if(find_ipv6_addr(NULL, ipv6_addr_for_http_with_brackets, sizeof(ipv6_addr_for_http_with_brackets)) > 0) {
+		if(find_ipv6_addr(lan_addrs.lh_first ? lan_addrs.lh_first->ifname : NULL,
+		                  ipv6_addr_for_http_with_brackets, sizeof(ipv6_addr_for_http_with_brackets)) > 0) {
 			syslog(LOG_NOTICE, "HTTP IPv6 address given to control points : %s",
 			       ipv6_addr_for_http_with_brackets);
 		} else {

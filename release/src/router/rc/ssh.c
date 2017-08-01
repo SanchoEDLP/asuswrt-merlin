@@ -59,17 +59,18 @@ void start_sshd(void)
 {
 	int dirty = 0;
 	char buf[3500];
-	char *argv[16];
+	char *argv[24];
 	int j, argc;
 	char *p, *str, *token, *saveptr;
 	char saddr[128];
+	char timeout[8];
 
 	if (!nvram_get_int("sshd_enable"))
-		return 0;
+		return;
 
 	if (getpid() != 1) {
 		notify_rc("start_sshd");
-		return 0;
+		return;
 	}
 
 	mkdir("/etc/dropbear", 0700);
@@ -108,6 +109,12 @@ void start_sshd(void)
 			p = nvram_safe_get("sshd_port");
 		argv[argc++]= "-p";
 		argv[argc++] = p;
+	}
+
+	if (nvram_get_int("sshd_timeout")) {
+		snprintf(timeout, sizeof(timeout), "%d", nvram_get_int("sshd_timeout") * 60);
+		argv[argc++] = "-I";
+		argv[argc++] = timeout;
 	}
 
 	if (!nvram_get_int("sshd_pass")) argv[argc++] = "-s";

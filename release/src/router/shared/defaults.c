@@ -746,6 +746,7 @@ struct nvram_tuple router_defaults[] = {
 	// For miniupnpd, so far default value only
 	{ "upnp_enable", "1" },
 	{ "upnp_secure", "1" },
+	{ "upnp_flush", "0" },
 	{ "upnp_port", "0" },
 	{ "upnp_ssdp_interval", "60" },
 	{ "upnp_mnp", "1" },
@@ -1206,6 +1207,7 @@ struct nvram_tuple router_defaults[] = {
 	{ "smbd_wins", "0"},
 	{ "smbd_wanac", "0"},
 	{ "smbd_simpler_naming", "0"},
+	{ "smbd_enable_smb2", "0"},
 
 #ifdef RTCONFIG_NFS
 	{ "nfsd_enable", "0"},
@@ -1485,6 +1487,7 @@ struct nvram_tuple router_defaults[] = {
 #if defined(RTCONFIG_SSH)
 	{"sshd_enable", "0"},
 	{"sshd_addr", ""},
+	{"sshd_timeout", "20" },
 	{"sshd_port", "22"},
 	{"sshd_pass","1"},
 	{"sshd_authkeys",""},
@@ -1662,6 +1665,7 @@ struct nvram_tuple router_defaults[] = {
 	{ "vpn_crt_server2_dh",		""		},
 	{ "vpn_client_unit",		"1"		},
 	{ "vpn_clientx_eas",		""		},
+	{ "vpn_client1_enabled",	"0"		},
 	{ "vpn_client1_poll",		"0"		},
 	{ "vpn_client1_if",		"tun"		},
 	{ "vpn_client1_bridge",		"1"		},
@@ -1701,7 +1705,9 @@ struct nvram_tuple router_defaults[] = {
 	{ "vpn_client1_state",		"0"		},
 	{ "vpn_client1_errno",		"0"		},
 	{ "vpn_client1_clientlist",	""		},
+	{ "vpn_client1_activelist",	""		},
 	{ "vpn_client1_enforce",	"0"		},
+	{ "vpn_client2_enabled",	"0"		},
 	{ "vpn_client2_poll",		"0"		},
 	{ "vpn_client2_if",		"tun"		},
 	{ "vpn_client2_bridge",		"1"		},
@@ -1741,7 +1747,9 @@ struct nvram_tuple router_defaults[] = {
 	{ "vpn_client2_state",		"0"		},
 	{ "vpn_client2_errno",		"0"		},
 	{ "vpn_client2_clientlist",	""		},
+	{ "vpn_client2_activelist",	""		},
 	{ "vpn_client2_enforce",	"0"		},
+	{ "vpn_client_enabled",		"0"		},
 	{ "vpn_client_poll",		"0"		},
 	{ "vpn_client_if",		"tun"		},
 	{ "vpn_client_bridge",		"1"		},
@@ -1774,6 +1782,7 @@ struct nvram_tuple router_defaults[] = {
 	{ "vpn_client_password",	""		},
 	{ "vpn_client_useronly",	"0"		},
 	{ "vpn_client_clientlist",	""		},
+	{ "vpn_client_activelist",	""		},
 	{ "vpn_client_enforce",		"0"		},
 #endif
 

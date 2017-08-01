@@ -10,10 +10,13 @@ fi
 create_client_list(){
 	OLDIFS=$IFS
 	IFS="<"
+	INDEX=0
 
 	for ENTRY in $VPN_IP_LIST
 	do
-		if [ "$ENTRY" == "" ]
+		let INDEX=$INDEX+1
+		RULE_ACTIVE=$(echo $VPN_ACT_LIST | tr " " ">" | cut -d ">" -f $INDEX)
+		if [ "$ENTRY" == "" -o "$RULE_ACTIVE" == "0" ]
 		then
 			continue
 		fi
@@ -100,15 +103,19 @@ init_table(){
 if [ "$dev" == "tun11" ]
 then
 	VPN_IP_LIST=$(nvram get vpn_client1_clientlist)
+	VPN_ACT_LIST=$(nvram get vpn_client1_activelist)
 	VPN_REDIR=$(nvram get vpn_client1_rgw)
 	VPN_FORCE=$(nvram get vpn_client1_enforce)
+	VPN_ENABLED=$(nvram get vpn_client1_enabled)
 	VPN_INSTANCE=1
 
 elif [ "$dev" == "tun12" ]
 then
 	VPN_IP_LIST=$(nvram get vpn_client2_clientlist)
+	VPN_ACT_LIST=$(nvram get vpn_client2_activelist)
 	VPN_REDIR=$(nvram get vpn_client2_rgw)
 	VPN_FORCE=$(nvram get vpn_client2_enforce)
+	VPN_ENABLED=$(nvram get vpn_client2_enabled)
 	VPN_INSTANCE=2
 else
 	run_custom_script
@@ -121,7 +128,7 @@ END_PRIO=$(($START_PRIO+199))
 WAN_PRIO=$START_PRIO
 VPN_PRIO=$(($START_PRIO+100))
 
-export VPN_GW VPN_IP VPN_TBL VPN_FORCE
+export VPN_GW VPN_IP VPN_TBL VPN_FORCE VPN_ENABLED
 
 
 # webui reports that vpn_force changed while vpn client was down
@@ -130,16 +137,21 @@ then
 	logger -t "openvpn-routing" "Refreshing policy rules for client $VPN_INSTANCE"
 	purge_client_list
 
-	if [ "$VPN_FORCE" == "1" -a "$VPN_REDIR" == "2" ]
+	if [ "$VPN_REDIR" == "2" ]
 	then
-		init_table
-		logger -t "openvpn-routing" "Tunnel down - VPN client access blocked"
-		ip route del default table $VPN_TBL
-		ip route add prohibit default table $VPN_TBL
-		create_client_list
-	else
-		logger -t "openvpn-routing" "Allow WAN access to all VPN clients"
-		ip route flush table $VPN_TBL
+		if [ "$VPN_FORCE" == "1" -o "$VPN_FORCE" == "2" -a "$VPN_ENABLED" == "1" ]
+		then
+			init_table
+			logger -t "openvpn-routing" "Tunnel down - VPN client access blocked"
+			ip route del default table $VPN_TBL
+			ip route add prohibit default table $VPN_TBL
+			$(nvram set vpn_client${VPN_INSTANCE}_block=1)
+			create_client_list
+		else
+			logger -t "openvpn-routing" "Allow WAN access to all VPN clients"
+			ip route flush table $VPN_TBL
+			$(nvram set vpn_client${VPN_INSTANCE}_block=0)
+		fi
 	fi
 	ip route flush cache
 	exit 0
@@ -158,14 +170,19 @@ if [ $script_type == 'route-pre-down' ]
 then
 	purge_client_list
 
-	if [ "$VPN_FORCE" == "1" -a "$VPN_REDIR" == "2" ]
+	if [ "$VPN_REDIR" == "2" ]
 	then
-		logger -t "openvpn-routing" "Tunnel down - VPN client access blocked"
-		ip route change prohibit default table $VPN_TBL
-		create_client_list
-	else
-		ip route flush table $VPN_TBL
-		logger -t "openvpn-routing" "Flushing client routing table"
+		if [ "$VPN_FORCE" == "1" -o "$VPN_FORCE" == "2" -a "$VPN_ENABLED" == "1" ]
+		then
+			logger -t "openvpn-routing" "Tunnel down - VPN client access blocked"
+			ip route change prohibit default table $VPN_TBL
+			$(nvram set vpn_client${VPN_INSTANCE}_block=1)
+			create_client_list
+		else
+			ip route flush table $VPN_TBL
+			$(nvram set vpn_client${VPN_INSTANCE}_block=0)
+			logger -t "openvpn-routing" "Flushing client routing table"
+		fi
 	fi
 fi	# End route down
 
@@ -195,13 +212,19 @@ then
 # Setup table default route
 	if [ "$VPN_IP_LIST" != "" ]
 	then
-		if [ "$VPN_FORCE" == "1" ]
+		if [ "$VPN_FORCE" == "1" -o "$VPN_FORCE" == "2" ]
 		then
 			logger -t "openvpn-routing" "Tunnel re-established, restoring WAN access to clients"
 		fi
-		ip route del default table $VPN_TBL
-		ip route add default via $route_vpn_gateway table $VPN_TBL
-		logger -t "openvpn-routing" "Setting default VPN route via $route_vpn_gateway"
+		if [ "$route_net_gateway" != "" ]
+		then
+			ip route del default table $VPN_TBL
+			ip route add default via $route_vpn_gateway table $VPN_TBL
+			logger -t "openvpn-routing" "Setting default VPN route via $route_vpn_gateway"
+		else
+			logger -t "openvpn-routing" "WARNING: no VPN gateway provided, routing might not work properly!"
+		fi
+		
 		if [ "$trusted_ip" != "" ]
 		then
 			logger -t "openvpn-routing" "VPN WAN address is $trusted_ip"
@@ -212,6 +235,7 @@ then
 	then
 		ip route del default
 		ip route add default via $route_net_gateway
+		$(nvram set vpn_client${VPN_INSTANCE}_block=0)
 	fi
 fi	# End route-up
 

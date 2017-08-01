@@ -466,6 +466,8 @@ add_option (char *p[], int line, int unit)
 	{
 		sprintf(buf, "vpn_client%d_rgw", unit);
 		nvram_set(buf, "1");
+		sprintf(buf, "vpn_client%d_custom", unit);
+		add_custom(buf, p);
 	}
 	else if (streq (p[0], "verb") && p[1])
 	{
@@ -594,8 +596,8 @@ add_option (char *p[], int line, int unit)
 	// These are already added by us
 	else if (streq (p[0], "client") ||
 		 streq (p[0], "nobind") ||
-		 streq (p[0], "persist-key") ||
-		 streq (p[0], "persist-tun"))
+		 streq (p[0], "persist-key"))
+//		 || streq (p[0], "persist-tun"))
 	{
 		return 0;	// Don't duplicate them
 	}

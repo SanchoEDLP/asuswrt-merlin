@@ -12,7 +12,7 @@
 struct list *list_new()
 {
 	struct list *new;
-
+	
 	new = malloc(sizeof(struct list));
 	if (!new) return NULL;
 	memset(new, 0, sizeof(struct list));
@@ -29,7 +29,7 @@ void list_free(struct list *l)
 static struct listnode *listnode_new(void)
 {
 	struct listnode *node;
-
+	
 	node = malloc(sizeof(struct listnode));
 	if (!node) return NULL;
 	memset(node, 0, sizeof(struct listnode));
@@ -46,17 +46,17 @@ static void listnode_free(struct listnode *node)
 void listnode_add(struct list *list, void *val)
 {
 	struct listnode *node;
-
+	
 	node = listnode_new();
 	if (!node) return;
-
+	
 	node->prev = list->tail;
 	node->data = val;
-
+	
 	if (list->head == NULL) list->head = node;
 	else list->tail->next = node;
 	list->tail = node;
-
+	
 	if (list->count < 0) list->count = 0;
 	list->count++;
 }
@@ -65,11 +65,11 @@ void listnode_add(struct list *list, void *val)
 void listnode_delete(struct list *list, void *val)
 {
 	struct listnode *node;
-
+	
 	for (node = list->head; node; node = node->next)
 	{
 		if (node->data != val) continue;
-
+		
 		if (node->prev) node->prev->next = node->next;
 		else list->head = node->next;
 		if (node->next) node->next->prev = node->prev;
@@ -87,7 +87,7 @@ void list_delete_all_node(struct list *list)
 {
 	struct listnode *node;
 	struct listnode *next;
-
+	
 	for (node = list->head; node; node = next)
 	{
 		next = node->next;
@@ -105,7 +105,7 @@ void list_delete(struct list *list)
 {
 	struct listnode *node;
 	struct listnode *next;
-
+	
 	for (node = list->head; node; node = next)
 	{
 		next = node->next;
@@ -133,13 +133,13 @@ void list_movefront_node(struct list *list, struct listnode *node)
 {
 	/* Don't do a thing when it is already there */
 	if (list->head == node) return;
-
+	
 	/* Delete it from the list's current position */
 	if (node->prev) node->prev->next = node->next;
 	else list->head = node->next;
 	if (node->next) node->next->prev = node->prev;
 	else list->tail = node->prev;
-
+	
 	/* Insert it at the front */
 	if (list->head)
 	{
@@ -149,3 +149,4 @@ void list_movefront_node(struct list *list, struct listnode *node)
 	node->next = list->head;
 	list->head = node;
 }
+

@@ -1421,7 +1421,15 @@ function updateDateTime()
 						<th>SSH service port</th>
 						<td>
 							<input type="text" maxlength="5" class="input_6_table" name="sshd_port" onKeyPress="return is_number(this,event);" onblur="validate_number_range(this, 1, 65535)" value="<% nvram_get("sshd_port"); %>">
-						</td>        
+						</td>
+					</tr>
+
+					<tr id="ssh_inactive">
+						<th>SSH inactivity timeout</th>
+						<td>
+							<input type="text" maxlength="5" class="input_6_table" name="sshd_timeout" onKeyPress="return is_number(this,event);" onblur="validate_number_range(this, 0, 1440)" value="<% nvram_get("sshd_timeout"); %>">
+							<span id="ntpd_upd_hint">&nbsp;&nbsp;Default: 20 minutes (0 disables inactivity timeout)</span>
+						</td>
 					</tr>
 
 					<tr>

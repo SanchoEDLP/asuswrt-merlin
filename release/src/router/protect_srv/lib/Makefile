@@ -25,7 +25,7 @@ endif
 vpath %.c $(SRCBASE)/protect_srv/
 
 ifeq ($(wildcard $(SRCBASE)/router/protect_srv/lib/*.c),)
-all:
+all: 
 	-cp -f prebuilt/libptcsrv.so libptcsrv.so
 else
 all: libptcsrv.so libptcsrv.a
@@ -98,3 +98,4 @@ clean:
 -include $(OBJS:%.o=.%.depend)
 
 endif
+

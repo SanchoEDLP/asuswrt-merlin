@@ -214,6 +214,7 @@ var digestsarray = [
 ];
 
 var clientlist_array = '<% nvram_get("vpn_client_clientlist"); %>';
+var activelist_array = '<% nvram_get("vpn_client_activelist"); %>';
 
 function initial()
 {
@@ -522,6 +523,7 @@ function cal_panel_block(){
 
 
 function applyRule(){
+	var currentpolicy = document.form.vpn_client_rgw.value;
 
 	if (service_state) {
 		document.form.action_wait.value = 15;
@@ -546,18 +548,29 @@ function applyRule(){
 	var rule_num = $('clientlist_table').rows.length;
 	var item_num = $('clientlist_table').rows[0].cells.length;
 	var tmp_value = "";
+	var sel_value = "";
 
 	for(i=0; i<rule_num; i++){
 		tmp_value += "<";
-		for(j=0; j<item_num-1; j++){
+		sel_value += "<";
+		for(j=1; j<item_num-1; j++){
 			tmp_value += $('clientlist_table').rows[i].cells[j].innerHTML;
-			if(j != item_num-2)
+			if(j < item_num-2)
 				tmp_value += ">";
 		}
+		
+		if (currentpolicy == 2) {
+			var selId = (i+1).toString();	// id for select checkbox starts at index 1
+			sel_value += $(selId).checked ? 1 : 0;
+		} else
+			sel_value += 1;
 	}
-	if(tmp_value == "<"+"<#IPConnection_VSList_Norule#>" || tmp_value == "<")
+	if(tmp_value == "<"+"<#IPConnection_VSList_Norule#>" || tmp_value == "<") {
 		tmp_value = "";
+		sel_value = "";
+	}
 	document.form.vpn_client_clientlist.value = tmp_value;
+	document.form.vpn_client_activelist.value = sel_value;
 
 	if (((enforce_orig != getRadioValue(document.form.vpn_client_enforce)) ||
 	     (policy_orig != document.form.vpn_client_rgw.value)) &&
@@ -642,8 +655,10 @@ function update_local_ip(object){
 
 function showclientlist(){
 	var clientlist_row = clientlist_array.split('&#60');
+	var activelist_row = activelist_array.split('&#60');
 	var code = "";
-	var width = ["24%", "29%", "25%", "10%", "12%"];
+	var swidth = ["5%"];
+	var width = ["24%", "25%", "24%", "10%", "12%"];
 
 	code +='<table width="100%" cellspacing="0" cellpadding="4" align="center" class="list_table" id="clientlist_table">';
 	if(clientlist_row.length == 1)
@@ -651,30 +666,85 @@ function showclientlist(){
 	else{
 		for(var i = 1; i < clientlist_row.length; i++){
 			code +='<tr id="row'+i+'">';
+			code_sel = "";
+			code_row = "";
+			code_sel +='<td width="' + swidth[0] +'">';
+			if (activelist_row[i] == 1 || activelist_row[i] == undefined)
+				code_sel += '<input id="'+i+'" type="checkbox" onclick="enable_check(this)" checked></td>';
+			else
+				code_sel += '<input id="'+i+'" type="checkbox" onclick="enable_check(this)"></td>';
 			var clientlist_col = clientlist_row[i].split('&#62');
 				for(var j = 0; j < clientlist_col.length; j++){
-					code +='<td width="' + width[j] +'">'+ clientlist_col[j] +'</td>';
+					code_row +='<td width="' + width[j] +'">'+ clientlist_col[j] +'</td>';
 				}
 				if (j < 4) {
-					code +='<td width="' + width[j++] +'">VPN</td>';
+					code_row +='<td width="' + width[j++] +'">VPN</td>';
 				}
-				code +='<td width="' + width[j] +'">';
+				code_row +='<td width="' + width[j] +'">';
 
-				code +='<input class="remove_btn" onclick="del_Row(this);" value=""/></td></tr>';
+				code_row +='<input class="remove_btn" onclick="del_Row(this);" value=""/></td></tr>';
+				code = code + code_sel + code_row;
+
 		}
 	}
 
-  code +='</table>';
+	code +='</table>';
 	$("clientlist_Block").innerHTML = code;
 }
 
-function addRow(obj, head){
-	if(head == 1)
-		clientlist_array += "&#60" /*&#60*/
-	else
-		clientlist_array += "&#62" /*&#62*/
+function enable_check(obj){
+	var clientlist_row = clientlist_array.split('&#60');
+	var activelist_row = activelist_array.split('&#60');
+	var clientlist_row_temp = "";
+	var activelist_row_temp = "";
+	for(i=0;i<clientlist_row.length;i++){
+		if(obj.id == i){
+			activelist_row_temp += obj.checked ? 1 : 0;
+		}
+		else if(obj.id == "selAll" && i > 0){
+			activelist_row_temp += obj.checked ? 1 : 0;
+		}
+		else {
+			activelist_row_temp += activelist_row[i];
+		}
+		if(i != clientlist_row.length-1)
+			activelist_row_temp += '&#60';
 
-	clientlist_array += obj.value;
+		var clientlist_col = clientlist_row[i].split('&#62');
+		var clientlist_col_temp = "";
+		for(j=0;j<clientlist_col.length;j++){
+			clientlist_col_temp += clientlist_col[j];
+			if(j != clientlist_col.length-1)
+				clientlist_col_temp += '&#62';
+		}
+		clientlist_row_temp += clientlist_col_temp;
+		if(i != clientlist_row.length-1)
+			clientlist_row_temp += '&#60';
+
+		clientlist_col_temp = "";
+	}
+
+	clientlist_array = clientlist_row_temp;
+	activelist_array = activelist_row_temp;
+	showclientlist();
+}
+
+function addRow(obj, head, list){
+	if(list == 0){
+		if(head == 1)
+			clientlist_array += "&#60" /*&#60*/
+		else
+			clientlist_array += "&#62" /*&#62*/
+
+		clientlist_array += obj.value;
+	} else {
+		if(head == 1)
+			activelist_array += "&#60" /*&#60*/
+		else
+			activelist_array += "&#62" /*&#62*/
+
+		activelist_array += obj;
+	}
 	obj.value = "";
 }
 
@@ -706,8 +776,8 @@ function addRow_Group(upper){
 
 	if(item_num >=2){
 		for(i=0; i<rule_num; i++){
-				if(document.form.clientlist_ipAddr.value.toLowerCase() == $('clientlist_table').rows[i].cells[1].innerHTML.toLowerCase() &&
-				   document.form.clientlist_dstipAddr.value.toLowerCase() == $('clientlist_table').rows[i].cells[2].innerHTML.toLowerCase()){
+				if(document.form.clientlist_ipAddr.value.toLowerCase() == $('clientlist_table').rows[i].cells[2].innerHTML.toLowerCase() &&
+				   document.form.clientlist_dstipAddr.value.toLowerCase() == $('clientlist_table').rows[i].cells[3].innerHTML.toLowerCase()){
 					alert("<#JS_duplicate#>");
 					document.form.clientlist_ipAddr.focus();
 					document.form.clientlist_ipAddr.select();
@@ -716,11 +786,15 @@ function addRow_Group(upper){
 		}
 	}
 
-	addRow(document.form.clientlist_deviceName ,1);
-	addRow(document.form.clientlist_ipAddr, 0);
-	addRow(document.form.clientlist_dstipAddr, 0);
-	addRow(document.form.clientlist_iface, 0);
+	var activelist_select = document.form.selRow.checked ? 1 : 0;
+
+	addRow(document.form.clientlist_deviceName ,1, 0);
+	addRow(document.form.clientlist_ipAddr, 0, 0);
+	addRow(document.form.clientlist_dstipAddr, 0, 0);
+	addRow(document.form.clientlist_iface, 0, 0);
+	addRow(activelist_select, 1, 1);
 	document.form.clientlist_iface.value = "VPN";
+	document.form.selRow.checked = true;
 	showclientlist();
 }
 
@@ -729,18 +803,27 @@ function del_Row(r){
 	$('clientlist_table').deleteRow(i);
 
 	var clientlist_value = "";
+	var activelist_value = "";
+	var selId = "";
 	for(k=0; k<$('clientlist_table').rows.length; k++){
 		clientlist_value += "&#60";
-		clientlist_value += $('clientlist_table').rows[k].cells[0].innerHTML;
-		clientlist_value += "&#62";
 		clientlist_value += $('clientlist_table').rows[k].cells[1].innerHTML;
 		clientlist_value += "&#62";
 		clientlist_value += $('clientlist_table').rows[k].cells[2].innerHTML;
 		clientlist_value += "&#62";
 		clientlist_value += $('clientlist_table').rows[k].cells[3].innerHTML;
+		clientlist_value += "&#62";
+		clientlist_value += $('clientlist_table').rows[k].cells[4].innerHTML;
+		activelist_value += "&#60";
+		if (k < i)
+			selId = (k+1).toString();
+		else
+			selId = (k+2).toString();
+		activelist_value += $(selId).checked ? 1 : 0;
 	}
 
 	clientlist_array = clientlist_value;
+	activelist_array = activelist_value;
 	if(clientlist_array == "")
 		showclientlist();
 }
@@ -923,8 +1006,10 @@ function defaultSettings() {
 <input type="hidden" name="vpn_client_if" value="<% nvram_get("vpn_client_if"); %>">
 <input type="hidden" name="vpn_client_local" value="<% nvram_get("vpn_client_local"); %>">
 <input type="hidden" name="vpn_client_clientlist" value="<% nvram_clean_get("vpn_client_clientlist"); %>">
+<input type="hidden" name="vpn_client_activelist" value="<% nvram_clean_get("vpn_client_activelist"); %>">
 <input type="hidden" name="dnsfilter_enable_x" value="<% nvram_get("dnsfilter_enable_x"); %>">
 <input type="hidden" name="vpn_reverse_strict" value="<% nvram_get("vpn_reverse_strict"); %>">
+<input type="hidden" name="vpn_client_enabled" value="<% nvram_get("vpn_client_enabled"); %>">
 
 <table class="content" align="center" cellpadding="0" cellspacing="0">
   <tr>
@@ -1267,8 +1352,9 @@ function defaultSettings() {
 					<tr id="client_enforce">
 						<th>Block routed clients if tunnel goes down</th>
 						<td>
-							<input type="radio" name="vpn_client_enforce" class="input" value="1" <% nvram_match_x("", "vpn_client_enforce", "1", "checked"); %>><#checkbox_Yes#>
-							<input type="radio" name="vpn_client_enforce" class="input" value="0" <% nvram_match_x("", "vpn_client_enforce", "0", "checked"); %>><#checkbox_No#>
+							<input type="radio" name="vpn_client_enforce" class="input" value="1" <% nvram_match_x("", "vpn_client_enforce", "1", "checked"); %>>Always
+							<input type="radio" name="vpn_client_enforce" class="input" value="2" <% nvram_match_x("", "vpn_client_enforce", "2", "checked"); %>>Only when client is enabled
+							<input type="radio" name="vpn_client_enforce" class="input" value="0" <% nvram_match_x("", "vpn_client_enforce", "0", "checked"); %>>Never
 						</td>
 					</tr>
 				</table>
@@ -1279,23 +1365,30 @@ function defaultSettings() {
 							<td colspan="5">Rules for routing client traffic through the tunnel (<#List_limit#>&nbsp;128)</td>
 						</tr>
 					</thead>
+
 					<tr>
-						<th><#IPConnection_autofwDesc_itemname#></th>
-						<th>Source IP</th>
-						<th>Destination IP</th>
-						<th>Iface</th>
-						<th><#list_add_delete#></th>
+						<th width="5%">
+							<input id="selAll" type="checkbox" onclick="enable_check(this);">
+						</th>
+						<th width="24%"><#IPConnection_autofwDesc_itemname#></th>
+						<th width="25%">Source IP</th>
+						<th width="24%">Destination IP</th>
+						<th width="10%">Iface</th>
+						<th width="12%"><#list_add_delete#></th>
 					</tr>
 					<tr>
+						<td width="5%">
+							<input id="selRow" type="checkbox" onclick="enable_check(this);" checked>
+						</td>
 						<td width="24%">
 							<input type="text" class="input_15_table" maxlength="15" name="clientlist_deviceName" onClick="hideClients_Block();" onkeypress="return is_alphanum(this,event);">
 						</td>
-						<td width="29%">
-							<input type="text" class="input_18_table" maxlength="18" name="clientlist_ipAddr">
-							<img id="pull_arrow" height="14px;" src="/images/arrow-down.gif" style="position:absolute;*margin-left:-3px;*margin-top:1px;" onclick="pullLANIPList(this);" title="<#select_device_name#>" onmouseover="over_var=1;" onmouseout="over_var=0;">
+						<td width="25%">
+							<input type="text" class="input_18_table" maxlength="18" style="margin-left:10px;float:left;width:140px;" name="clientlist_ipAddr">
+							<img id="pull_arrow" height="14px;" src="/images/arrow-down.gif" onclick="pullLANIPList(this);" title="<#select_device_name#>" onmouseover="over_var=1;" onmouseout="over_var=0;">
 							<div id="ClientList_Block_PC" class="ClientList_Block_PC"></div>
 						</td>
-						<td width="25%">
+						<td width="24%">
 							<input type="text" class="input_18_table" maxlength="18" name="clientlist_dstipAddr">
 						</td>
 						<td width="10%">
