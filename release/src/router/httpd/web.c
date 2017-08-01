@@ -6725,6 +6725,7 @@ struct mime_handler mime_handlers[] = {
 
 	{ "**.gz", "application/octet-stream", NULL, NULL, do_file, NULL },
 	{ "**.tgz", "application/octet-stream", NULL, NULL, do_file, NULL },
+	{ "**.tar", "application/octet-stream", NULL, NULL, do_file, NULL },
 	{ "**.zip", "application/octet-stream", NULL, NULL, do_file, NULL },
 	{ "**.ipk", "application/octet-stream", NULL, NULL, do_file, NULL },
 	{ "**.css", "text/css", cache_object, NULL, do_file, NULL },
@@ -6744,7 +6745,6 @@ struct mime_handler mime_handlers[] = {
 	{ "**.js",  "text/javascript", no_cache_IE7, NULL, do_ej, do_auth },
 	{ "**.cab", "text/txt", NULL, NULL, do_file, do_auth },
 	{ "**.CFG", "application/force-download", NULL, NULL, do_prf_file, do_auth },
-	{ "**.TAR", "application/force-download", NULL, NULL, do_prf_file, do_auth },
 	{ "**.ovpn", "application/force-download", NULL, NULL, do_prf_ovpn_file, do_auth },
 	{ "apply.cgi*", "text/html", no_cache_IE7, do_html_post_and_get, do_apply_cgi, do_auth },
 	{ "applyapp.cgi*", "text/html", no_cache_IE7, do_html_post_and_get, do_apply_cgi, do_auth },
@@ -6831,6 +6831,7 @@ struct except_mime_handler except_mime_handlers[] = {
 	{ "alertImg.gif", MIME_EXCEPTION_NOAUTH_ALL},
 	{ "error_page.htm", MIME_EXCEPTION_NOAUTH_ALL},
 	{ "httpd_check.htm", MIME_EXCEPTION_NOAUTH_ALL},
+	{ "UploadError.asp", MIME_EXCEPTION_NOAUTH_ALL},
 	{ NULL, 0 }
 };
 
@@ -6868,6 +6869,7 @@ struct mime_referer mime_referers[] = {
 	{ "login.cgi", CHECK_REFERER},
 	{ "get_webdavInfo.asp", CHECK_REFERER},
 	{ "update_clients.asp", CHECK_REFERER},
+	{ "UploadingJFFS.asp", CHECK_REFERER},
 	{ NULL, 0 }
 };
 
@@ -9812,35 +9814,40 @@ write_ver:
 int
 get_nat_vserver_table(int eid, webs_t wp, int argc, char_t **argv)
 {
-	FILE *fp;
+	FILE *fp, *fpl;
 	char *nat_argv[] = {"iptables", "-t", "nat", "-nxL", NULL};
-	char line[256], tmp[256];
-	char target[16], proto[16];
-	char src[19];
-	char dst[19];
+	char line[512], tmp[512], linel[128];
+	char target[16], proto[16], chain[16], src[19], dst[19];
+	char desc[64], desc2[128];
 	char *range, *host, *port, *ptr, *val;
+	char *name, *eport, *iaddr, *iport, *eproto, *srcip, *timestamp;
+	char *buf, *g, *p;
+	int cnt;
+	char timestr[sizeof("999:59:59")];
+	unsigned int expires, timenow;
+	int fwdfnd;
 	int ret = 0;
-	char chain[16];
 
 	/* dump nat table including VSERVER and VUPNP chains */
 	_eval(nat_argv, ">/tmp/vserver.log", 10, NULL);
 
 	ret += websWrite(wp,
+		"Description                          Chain       Proto. Port range  Redirect to     Local port  Time left  "
+	/*	 123456789012345678901234567890123456 POSTROUTING other  65535:65535 255.255.255.255 65535:65535 999:59:59  */
 #ifdef NATSRC_SUPPORT
-		"Source             "
-/*		 255.255.255.255/32 */
+		"Source              "
+	/*	 !255.255.255.255/32 */
 #endif
-		"Destination     Proto. Port range  Redirect to     Local port  Chain\n");
-	/*	 255.255.255.255 other  65535:65535 255.255.255.255 65535:65535 VUPNP*/
+		"Destination         \n");
+	/*	 !255.255.255.255/32 */
 
 	fp = fopen("/tmp/vserver.log", "r");
 	if (fp == NULL)
 		return ret;
 
+	fwdfnd = 0;
 	while (fgets(line, sizeof(line), fp) != NULL)
 	{
-		_dprintf("HTTPD: %s\n", line);
-
 		// If it's a chain definition then store it for following rules
 		if (!strncmp(line, "Chain",  5)){
 			if (sscanf(line, "%*s%*[ \t]%15s%*[ \t]%*s", chain) == 1)
@@ -9854,19 +9861,26 @@ get_nat_vserver_table(int eid, webs_t wp, int argc, char_t **argv)
 		    "%18s%*[ \t]"		// source
 		    "%18s%*[ \t]"		// destination
 		    "%255[^\n]",		// options
-		    target, proto, src, dst, tmp) < 5) continue;
+		    target, proto, src, dst, tmp) < 5)
+			continue;
 
 		/* TODO: add port trigger, portmap, etc support */
 		if (strcmp(target, "DNAT") != 0)
 			continue;
 
 		/* Don't list DNS redirections  from DNSFilter */
-		if (strcmp(chain, "DNSFILTER") ==0)
+		if (strcmp(chain, "DNSFILTER") == 0)
 			continue;
 
 		/* Don't list DNS redirections  from DNSVPNx */
-                if (strncmp(chain, "DNSVPN", 6) ==0)
+                if (strncmp(chain, "DNSVPN", 6) == 0)
                         continue;
+
+		/* Don't list UPNP postrouting */
+                if (strncmp(chain, "PUPNP", 5) == 0)
+                        continue;
+
+		_dprintf("HTTPD: %s\n", line);
 
 		/* uppercase proto */
 		for (ptr = proto; *ptr; ptr++)
@@ -9874,11 +9888,11 @@ get_nat_vserver_table(int eid, webs_t wp, int argc, char_t **argv)
 #ifdef NATSRC_SUPPORT
 		/* parse source */
 		if (strcmp(src, "0.0.0.0/0") == 0)
-			strcpy(src, "ALL");
+			strcpy(src, "All");
 #endif
 		/* parse destination */
 		if (strcmp(dst, "0.0.0.0/0") == 0)
-			strcpy(dst, "ALL");
+			strcpy(dst, "All");
 
 		/* parse options */
 		port = host = range = "";
@@ -9894,16 +9908,81 @@ get_nat_vserver_table(int eid, webs_t wp, int argc, char_t **argv)
 			}
 		}
 
+		strcpy(timestr, "N/A");
+		strcpy(desc, "N/A");
+		strcpy(desc2, "N/A");
+
+		if ((strncmp(chain, "VUPNP", 5) != 0) && (strncmp(chain, "FUPNP", 5) != 0 )) {
+			/* get the server name or description from vts rulelist */
+			g = buf = strdup(nvram_safe_get("vts_rulelist"));
+			while (g) {
+				if ((p = strsep(&g, "<")) == NULL)
+					break;
+				if (*p)
+					_dprintf("VTS_RULELIST: %s\n", p);
+				if ((cnt = vstrsep(p, ">", &name, &eport, &iaddr, &iport, &eproto, &srcip)) < 5)
+					continue;
+				else if (cnt < 6)
+					strcpy(srcip, "All");
+
+				if (strcmp(iaddr, host))
+					continue;
+				if ((!strcmp(eproto, proto)) && (!strcmp(eport, range)) && (!strcmp(iport, port ? : range))) {
+					strlcpy(desc, name, sizeof(desc));
+					break;
+				}
+			}
+		} else {
+			/* get the server name or description and timeleft from upnp leases */
+			fpl = fopen("/var/lib/misc/upnp.leases", "r");
+			if (fpl == NULL)
+				break;
+			while (fgets(linel, sizeof(linel), fpl) != NULL) {
+				p = buf = strdup(linel);
+				remove_char(p, '\n');  //strip linefeeds
+				if (*p)
+					_dprintf("UPNPD: %s\n", p);
+				if ((cnt = vstrsep(p, ":", &eproto, &eport, &iaddr, &iport, &timestamp, &name)) < 6)
+					continue;
+
+				if (strcmp(iaddr, host))
+					continue;
+				if ((!strcmp(eproto, proto)) && (!strcmp(eport, range)) && (!strcmp(iport, port ? : range))) {
+					strlcpy(desc, name, sizeof(desc));
+					timenow = time(0);
+					expires = strtoul(timestamp, NULL, 10);
+					if (expires) {
+						expires = expires - timenow;
+						snprintf(timestr, sizeof(timestr), "%u:%02u:%02u",
+						    expires / 3600,
+						    expires % 3600 / 60,
+						    expires % 60);
+					}
+					break;
+				}
+			}
+			fclose(fpl);
+		}
+		if (str_escape_quotes(desc2, desc, sizeof(desc2)) == 0)
+			strlcpy(desc2, desc, sizeof(desc2));
+
+		fwdfnd = 1;
 		ret += websWrite(wp,
+			"%-36s %-11s %-6s %-11s %-15s %-11s %-10s "
 #ifdef NATSRC_SUPPORT
-			"%-18s "
+			"%-19s "
 #endif
-			"%-15s %-6s %-11s %-15s %-11s %-15s\n",
+			"%-19s\n",
+			desc2, chain, proto, range, host, port ? : range, timestr,
 #ifdef NATSRC_SUPPORT
 			src,
 #endif
-			dst, proto, range, host, port ? : range, chain);
+			dst);
 	}
+
+	if (!fwdfnd)
+		ret += websWrite(wp, "*** No active port forwards ***\n");
+
 	fclose(fp);
 	unlink("/tmp/vserver.log");
 

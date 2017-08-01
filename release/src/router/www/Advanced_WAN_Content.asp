@@ -182,6 +182,7 @@ function display_upnp_range(){
 	$("upnp_secure_mode").style.display = (document.form.wan_upnp_enable[0].checked) ? "" : "none";
 	$("upnp_range_int").style.display = (document.form.wan_upnp_enable[0].checked) ? "" : "none";
 	$("upnp_range_ext").style.display = (document.form.wan_upnp_enable[0].checked) ? "" : "none";
+	$("upnp_flush_leases").style.display = (document.form.wan_upnp_enable[0].checked) ? "" : "none";
 }
 
 function change_wan_unit(obj){
@@ -999,7 +1000,14 @@ function pass_checked(obj){
 										<input type="text" maxlength="5" name="upnp_max_port_ext" class="input_6_table" value="<% nvram_get("upnp_max_port_ext"); %>" onkeypress="return is_number(this,event);">
 									</td>
 							</tr>
+							<tr id="upnp_flush_leases">
 
+								<th>UPNP: Clear existing leases</th>
+									<td>
+										<input type="radio" name="upnp_flush" class="input" value="1" <% nvram_match_x("", "upnp_flush", "1", "checked"); %>><#checkbox_Yes#>
+										<input type="radio" name="upnp_flush" class="input" value="0" <% nvram_match_x("", "upnp_flush", "0", "checked"); %>><#checkbox_No#>
+									</td>
+							</tr>
 						</table>
 
 						<table id="IPsetting" width="100%" border="1" align="center" cellpadding="4" cellspacing="0" bordercolor="#6b8fa3" class="FormTable">

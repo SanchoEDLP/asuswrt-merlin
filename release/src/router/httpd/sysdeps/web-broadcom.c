@@ -946,13 +946,13 @@ ej_wl_status(int eid, webs_t wp, int argc, char_t **argv, int unit)
 
 	ret += websWrite(wp, "\n");
  	ret += websWrite(wp, "Stations  (flags: P=Powersave Mode, S=Short GI, T=STBC, A=Associated, U=Authenticated)\n");
- 	ret += websWrite(wp, "----------------------------------------\n");
+ 	ret += websWrite(wp, "------------------------------------------------------------------------------------------\n");
  	
 	if (leaselist) {
-		ret += websWrite(wp, "%-18s%-16s%-16s%-8s%-15s%-10s%-5s\n",
+		ret += websWrite(wp, "%-18s%-16s%-16s%-8s%-15s%-12s%-5s\n",
 				"MAC", "IP Address", "Name", "  RSSI", "  Rx/Tx Rate", "Connected", "Flags");
 	} else {
-		ret += websWrite(wp, "%-18s%-16s%-8s%-15s%-10s%-5s\n",
+		ret += websWrite(wp, "%-18s%-16s%-8s%-15s%-12s%-5s\n",
 				"MAC", "IP Address", "  RSSI", "  Rx/Tx Rate", "Connected", "Flags");
 	}
 
@@ -1023,7 +1023,7 @@ ej_wl_status(int eid, webs_t wp, int argc, char_t **argv, int unit)
 			hr = sta->in / 3600;
 			min = (sta->in % 3600) / 60;
 			sec = sta->in - hr * 3600 - min * 60;
-			ret += websWrite(wp, "%02d:%02d:%02d  ", hr, min, sec);
+			ret += websWrite(wp, "%4d:%02d:%02d  ", hr, min, sec);
 
 // Flags
 #ifdef RTCONFIG_BCMARM
@@ -1153,7 +1153,7 @@ ej_wl_status(int eid, webs_t wp, int argc, char_t **argv, int unit)
 					hr = sta->in / 3600;
 					min = (sta->in % 3600) / 60;
 					sec = sta->in - hr * 3600 - min * 60;
-					ret += websWrite(wp, "%02d:%02d:%02d  ", hr, min, sec);
+					ret += websWrite(wp, "%4d:%02d:%02d  ", hr, min, sec);
 
 // Flags
 #ifdef RTCONFIG_BCMARM

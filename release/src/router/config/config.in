@@ -246,9 +246,23 @@ config RTCONFIG_SAMBA3
 	depends on RTCONFIG_SAMBASRV
 	default n
 
+config RTCONFIG_SAMBA36X
+	bool "Compile with Samba 3.6.x"
+	depends on RTCONFIG_SAMBASRV
+	default n
+
+config RTCONFIG_SAMBA_MODERN
+         bool "Compile with modern Samba 3.6.x"
+         depends on RTCONFIG_SAMBASRV
+         default n
+
 config RTCONFIG_NFS 
 	bool "NFS Support" 
 	depends on RTCONFIG_USB
+	default n
+
+config RTCONFIG_UPNPIGD2
+	bool "miniupnpd: Enable IGD2 support"
 	default n
 
 config RTCONFIG_DNSSEC

@@ -16,10 +16,9 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
  *
- *  You should have received a copy of the GNU General Public License
- *  along with this program (see the file COPYING included with this
- *  distribution); if not, write to the Free Software Foundation, Inc.,
- *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
 #ifdef HAVE_CONFIG_H
@@ -369,9 +368,14 @@ void update_nvram_status(int flag)
 		break;
 	case RUNNING:
 		sprintf(buf, "vpn_%s_errno", p);
-		nvram_set_int(buf, 0);
-		sprintf(buf, "vpn_%s_state", p);
-		nvram_set_int(buf, ST_RUNNING);
+		if(nvram_get_int(buf)) {
+			sprintf(buf, "vpn_%s_state", p);
+			nvram_set_int(buf, ST_ERROR);
+		}
+		else {
+			sprintf(buf, "vpn_%s_state", p);
+			nvram_set_int(buf, ST_RUNNING);
+		}
 		break;
 	case SSLPARAM_ERROR:
 		sprintf(buf, "vpn_%s_errno", p);

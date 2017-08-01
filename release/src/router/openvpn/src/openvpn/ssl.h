@@ -17,10 +17,9 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
  *
- *  You should have received a copy of the GNU General Public License
- *  along with this program (see the file COPYING included with this
- *  distribution); if not, write to the Free Software Foundation, Inc.,
- *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
 /**
@@ -482,7 +481,7 @@ void tls_update_remote_addr(struct tls_multi *multi,
  * @return true if updating succeeded, false otherwise.
  */
 bool tls_session_update_crypto_params(struct tls_session *session,
-                                      const struct options *options, struct frame *frame);
+                                      struct options *options, struct frame *frame);
 
 /**
  * "Poor man's NCP": Use peer cipher if it is an allowed (NCP) cipher.
@@ -598,6 +597,8 @@ void extract_x509_field_test(void);
  * If key_method == 0, return true if any form of hard reset is used.
  */
 bool is_hard_reset(int op, int key_method);
+
+void delayed_auth_pass_purge(void);
 
 #endif /* ENABLE_CRYPTO */
 

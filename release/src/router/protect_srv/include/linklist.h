@@ -7,14 +7,14 @@
 #ifndef __LINKLIST_H
 #define __LINKLIST_H
 
-struct listnode
+struct listnode 
 {
 	struct listnode	*next;
 	struct listnode	*prev;
 	void		*data;
 };
 
-struct list
+struct list 
 {
 	struct listnode	*head;
 	struct listnode	*tail;
@@ -55,3 +55,4 @@ void		list_movefront_node(struct list *, struct listnode *);
 #define LIST_LOOP2_END }
 
 #endif /* __LINKLIST_H */
+

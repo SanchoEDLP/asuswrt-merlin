@@ -1500,20 +1500,26 @@ void ntpd_check()
 	}
 }
 
+static int qos_flag = 0;
 void qos_check()
 {
 	int errno, wan6valid;
 
-	errno = nvram_get_int("qos_addr_err");
-	wan6valid = (getifaddr( (char *)get_wan6face(), AF_INET6, GIF_PREFIXLEN) ? 1 : 0);
-	if (!wan6valid)
-		nvram_set_int("qos_addr_err", (errno | 2));
+	if (qos_flag == 1) {  //check qos every 30 sec
 
-	if ((errno & 1) || ((errno & 2) && ipv6_enabled() && (wan6valid)) || (errno & 4)) {
-		logmessage("watchdog", "restart qos");
-		_dprintf("watchdog restart qos errno %d", errno);
-		system("rc rc_service restart_qos");
+		errno = nvram_get_int("qos_addr_err");
+		wan6valid = (getifaddr( (char *)get_wan6face(), AF_INET6, GIF_PREFIXLEN) ? 1 : 0);
+		if (!wan6valid)
+			nvram_set_int("qos_addr_err", (errno | 2));
+
+		if ((errno & 1) || ((errno & 2) && ipv6_enabled() && (wan6valid)) || (errno & 4)) {
+			logmessage("watchdog", "restart qos");
+			_dprintf("watchdog restart qos errno %d", errno);
+			//system("rc rc_service restart_qos");
+			notify_rc("restart_qos");
+		}
 	}
+	qos_flag = !qos_flag;
 }
 
 void watchdog_check()

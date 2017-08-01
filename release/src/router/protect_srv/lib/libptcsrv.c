@@ -41,7 +41,7 @@ void Debug2Console(const char * format, ...)
 	FILE *f;
 	int nfd;
 	va_list args;
-
+	
 	if (((nfd = open("/dev/console", O_WRONLY | O_NONBLOCK)) > 0) &&
 	    (f = fdopen(nfd, "w")))
 	{
@@ -56,19 +56,19 @@ void Debug2Console(const char * format, ...)
 		vfprintf(stderr, format, args);
 		va_end(args);
 	}
-
+	
 	if (nfd != -1) close(nfd);
 }
 
 int isFileExist(char *fname)
 {
 	struct stat fstat;
-
+	
 	if (lstat(fname,&fstat)==-1)
 		return 0;
 	if (S_ISREG(fstat.st_mode))
 		return 1;
-
+	
 	return 0;
 }
 #endif
@@ -77,7 +77,7 @@ static PTCSRV_STATE_REPORT_T *initial_ptcsrv_event()
 {
 	PTCSRV_STATE_REPORT_T *e;
 	e = malloc(sizeof(PTCSRV_STATE_REPORT_T));
-	if (!e)
+	if (!e) 
 		return NULL;
 	memset(e, 0, sizeof(PTCSRV_STATE_REPORT_T));
 	return e;
@@ -92,49 +92,53 @@ static int send_ptcsrv_event(void *data, char *socketpath)
 {
 	struct    sockaddr_un addr;
 	int       sockfd, n;
-
+	
 	if ( (sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
 		printf("[%s:(%d)] ERROR socket.\n", __FUNCTION__, __LINE__);
 		perror("socket error");
 		return 0;
 	}
-
+	
+	fcntl(sockfd, F_SETFL, O_NONBLOCK);
+	
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_UNIX;
 	strncpy(addr.sun_path, socketpath, sizeof(addr.sun_path)-1);
-
+	
 	if (connect(sockfd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
 		printf("[%s:(%d)] ERROR connecting:%s.\n", __FUNCTION__, __LINE__, strerror(errno));
 		perror("connect error");
 		close(sockfd);
 		return 0;
 	}
-
+	
 	n = write(sockfd, (PTCSRV_STATE_REPORT_T *)data, sizeof(PTCSRV_STATE_REPORT_T));
-
+	
 	close(sockfd);
-
+	
 	if(n < 0) {
 		printf("[%s:(%d)] ERROR writing:%s.\n", __FUNCTION__, __LINE__, strerror(errno));
 		perror("writing error");
 		return 0;
 	}
-
+	
 	return 1;
 }
 
-void SEND_PTCSRV_EVENT(int s_type, const char *addr, const char *msg)
+void SEND_PTCSRV_EVENT(int s_type, int status, const char *addr, const char *msg)
 {
 	/* Do Initial first */
 	PTCSRV_STATE_REPORT_T *state_t = initial_ptcsrv_event();
-
+	
 	state_t->s_type = s_type;
+	state_t->status = status;
 	snprintf(state_t->addr, sizeof(state_t->addr), addr);
 	snprintf(state_t->msg, sizeof(state_t->msg), msg);
-
+	
 	/* Send Event to Protection Server */
 	send_ptcsrv_event(state_t, PROTECT_SRV_SOCKET_PATH);
-
+	
 	/* Free malloc via initial_ptcsrv_event() */
 	ptcsrv_event_free(state_t);
 }
+

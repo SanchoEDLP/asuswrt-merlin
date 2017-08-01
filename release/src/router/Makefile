@@ -1,3 +1,4 @@
+
 #
 # Broadcom Linux Router Makefile
 #
@@ -131,13 +132,21 @@ endif
 ifeq ($(RTCONFIG_DSL),y)
 obj-y += dsl_drv_tool
 endif
+
 ifneq ($(or $(findstring linux-2.6.36,$(LINUXDIR)),$(findstring linux-3.x,$(LINUXDIR))),)
+IPTABLES := iptables-1.4.x
+IPTC_LIBDIR := $(TOP)/$(IPTABLES)/libiptc/.libs
+IPTC_LIBS := -lip4tc $(if $(RTCONFIG_IGD2), $(if $(RTCONFIG_IPV6),-lip6tc,),) -liptc
 obj-y += iptables-1.4.x
 obj-y += iproute2-3.x
 else
+IPTABLES := iptables
+IPTC_LIBDIR := $(TOP)/$(IPTABLES)
+IPTC_LIBS := -liptc
 obj-y += iptables
 obj-y += iproute2
 endif
+
 obj-y += libbcmcrypto
 ifeq ($(RTCONFIG_HTTPS),y)
 obj-y += openssl
@@ -172,6 +181,8 @@ obj-y += etc
 # obj-y += vlan # use Busybox vconfig
 #obj-y += utils
 obj-y += ntpclient
+obj-y += zlib # for libxml2, curl
+obj-y += curl # include for all builds
 
 ifneq ($(RTCONFIG_4M_SFP),y)
 obj-y += rstats
@@ -269,7 +280,8 @@ else
 NEED_SAMBA2 = y
 endif
 endif
-endif
+
+endif #RTCONFIG_USB
 
 ifeq ($(RTCONFIG_IPV6),y)
 export RTCONFIG_IPV6 := y
@@ -278,14 +290,22 @@ else
 RTCONFIG_IPV6 :=
 IPTABLES_IPV6_OPT := --disable-ipv6
 endif
+
 # install before samba3 for not overwriting some binaries
 obj-$(RTCONFIG_WEBDAV) += samba-3.5.8
 obj-$(NEED_SAMBA2) += samba
+
+ifeq ($(or $(RTCONFIG_SAMBA_MODERN),$(RTCONFIG_SAMBA36X)),y)
+obj-$(NEED_SAMBA3) += libiconv-1.14
+obj-$(NEED_SAMBA3) += samba36
+else
 ifeq ($(RTCONFIG_BCMARM),y)
 obj-$(NEED_SAMBA3) += samba-3.0.25b
 else
 obj-$(NEED_SAMBA3) += samba3
 endif
+endif
+
 ifeq ($(RTCONFIG_NTFS3G),y)
 obj-$(RTCONFIG_NTFS) += ntfs-3g
 else
@@ -326,7 +346,7 @@ MEDIA_SERVER_STATIC=y
 #add by gauss for cloudsync
 obj-$(RTCONFIG_CLOUDSYNC) += openssl
 obj-$(RTCONFIG_CLOUDSYNC) += libxml2
-obj-$(RTCONFIG_CLOUDSYNC) += curl-7.21.7
+obj-$(RTCONFIG_CLOUDSYNC) += curl
 obj-$(RTCONFIG_CLOUDSYNC) += asuswebstorage$(BCMEX)
 obj-$(RTCONFIG_CLOUDSYNC) += inotify
 
@@ -341,8 +361,8 @@ obj-$(RTCONFIG_TIMEMACHINE) += libgcrypt-1.5.1
 obj-$(RTCONFIG_TIMEMACHINE) += db-4.8.30
 obj-$(RTCONFIG_TIMEMACHINE) += netatalk-3.0.5
 ifeq ($(or $(RTCONFIG_TIMEMACHINE),$(RTCONFIG_MDNS)),y)
-obj-$(RTCONFIG_TIMEMACHINE) += avahi-0.6.31
-obj-$(RTCONFIG_TIMEMACHINE) += expat-2.0.1
+obj-$(RTCONFIG_TIMEMACHINE) += avahi-0.6.32
+obj-$(RTCONFIG_TIMEMACHINE) += expat-2.2.0
 else
 obj-$(RTCONFIG_MEDIA_SERVER) += mDNSResponder
 endif
@@ -381,8 +401,7 @@ obj-$(RTCONFIG_WEBDAV) += libexif
 obj-$(RTCONFIG_IXIAEP) += ixia_endpoint$(BCMEX)
 
 # Add for ASUS Components
-obj-y += zlib # for libxml2, curl
-obj-y += curl-7.21.7 # include for all builds
+obj-$(RTCONFIG_UPNPC) += miniupnpc
 obj-y += miniupnpd
 obj-y += igmpproxy
 obj-y += udpxy
@@ -415,7 +434,7 @@ obj-$(RTCONFIG_IPERF) += iperf
 obj-$(RTCONFIG_PUSH_EMAIL) += zlib # for libxml2, curl.
 obj-$(RTCONFIG_PUSH_EMAIL) += openssl
 obj-$(RTCONFIG_PUSH_EMAIL) += libxml2
-obj-$(RTCONFIG_PUSH_EMAIL) += curl-7.21.7
+obj-$(RTCONFIG_PUSH_EMAIL) += curl
 obj-$(RTCONFIG_PUSH_EMAIL) += wb
 obj-$(RTCONFIG_PUSH_EMAIL) += email-3.1.3
 obj-$(RTCONFIG_PUSH_EMAIL) += push_log
@@ -455,12 +474,11 @@ obj-$(RTCONFIG_TCPDUMP) += libpcap
 obj-$(RTCONFIG_TCPDUMP) += tcpdump-4.4.0
 
 # Merlin/fork addons
-obj-n += wol
 obj-y += haveged
 ifneq ($(or $(findstring linux-2.6.36,$(LINUXDIR)),$(findstring linux-3.x,$(LINUXDIR))),)
-obj-y += ipset_arm
-obj-y += libmnl
 obj-y += libnfnetlink
+obj-y += libmnl
+obj-y += ipset_arm
 else
 obj-y += ipset
 endif
@@ -469,15 +487,6 @@ obj-$(RTCONFIG_NANO) += nano
 
 obj-clean := $(foreach obj, $(obj-y) $(obj-n) $(obj-), $(obj)-clean)
 obj-install := $(foreach obj,$(obj-y),$(obj)-install)
-
-# Specify iptables path and target for miniupnpd
-ifneq ($(findstring iptables-1.4.x,$(obj-y)),)
-IPTABLESPATH=$(TOP)/iptables-1.4.x
-export IPTABLESPATH
-IPTABLES_TARGET = iptables-1.4.x
-else
-IPTABLES_TARGET = iptables
-endif
 
 ifneq ($(or $(findstring linux-2.6.36.x,$(LINUXDIR)),$(findstring linux-3.x,$(LINUXDIR))),)
 MKSQUASHFS_TARGET = mksquashfs
@@ -864,21 +873,12 @@ ifeq ($(RTCONFIG_L7PAT),y)
 endif
 
 	busybox/examples/depmod.pl -k $(LINUXDIR)/vmlinux -b $(TARGETDIR)/lib/modules/*/
-ifneq ($(RTCONFIG_BCMARM),y)
-	mv $(TARGETDIR)/lib/modules/$(LINUX_KERNEL)/modules.dep $(TARGETDIR)/lib/modules/
-else
-	mv $(TARGETDIR)/lib/modules/*/modules.dep $(TARGETDIR)/lib/modules/
-endif
 
 ifeq ($(RTCONFIG_QTN),y)
 	# install qtn boot-code and firmware
 	install -D qtnimage/topaz-linux.lzma.img $(TARGETDIR)/rom/qtn/topaz-linux.lzma.img
 	install -D qtnimage/u-boot.bin $(TARGETDIR)/rom/qtn/u-boot.bin
 endif
-
-# Default curl install
-	install -D curl-7.21.7/src/.libs/curl $(TARGETDIR)/usr/sbin/curl
-	$(STRIP) $(TARGETDIR)/usr/sbin/curl
 
 ifeq ($(RTCONFIG_BWDPI),y)
 	install -d $(TARGETDIR)/usr/bwdpi/
@@ -1215,7 +1215,7 @@ mssl:	openssl
 
 mdu:	shared mssl
 
-wb: openssl libxml2 curl-7.21.7
+wb: openssl libxml2 curl
 
 push_log: wb
 
@@ -1399,43 +1399,39 @@ endif
 iptables-clean:
 	-@$(MAKE) -C iptables KERNEL_DIR=$(LINUXDIR) clean
 
+iptables-1.4.x/configure:
+	cd iptables-1.4.x && ./autogen.sh
+
+iptables-1.4.x/Makefile: iptables-1.4.x/configure
+	cd iptables-1.4.x && $(CONFIGURE) \
+		--prefix=/usr \
+		--bindir=/usr/sbin \
+		--libdir=/usr/lib \
+		--with-kernel=$(LINUXDIR) \
+		$(if $(RTCONFIG_IPV6),--enable-ipv6,--disable-ipv6) \
+		CFLAGS="-Os $(EXTRACFLAGS) -U CONFIG_NVRAM_SIZE"
+
 iptables-1.4.x: iptables-1.4.x/Makefile libnfnetlink
 	@$(SEP)
 	$(MAKE) -C $@ KERNEL_DIR=$(LINUXDIR) COPT_FLAGS="-Os $(EXTRACFLAGS) -U CONFIG_NVRAM_SIZE" \
 		CFLAGS="-Wall -Os -D_GNU_SOURCE $(EXTRACFLAGS) -I$(TOP)/libnfnetlink/include" \
 		LDFLAGS="-L$(TOP)/libnfnetlink/src/.libs -lnfnetlink"
 
-iptables-1.4.x/Makefile: iptables-1.4.x/configure
-	$(MAKE) iptables-1.4.x-configure
-
-iptables-1.4.x/configure:
-	( cd iptables-1.4.x ; ./autogen.sh )
-
-iptables-1.4.x-configure:
-	( cd iptables-1.4.x ; \
-		$(CONFIGURE) \
-		--prefix=/usr \
-		--bindir=/usr/sbin \
-		--libdir=/usr/lib \
-		$(IPTABLES_IPV6_OPT) \
-		--with-kernel=$(LINUXDIR) \
-	)
-
-iptables-1.4.x-install:
+iptables-1.4.x-install: iptables-1.4.x
 	install -D iptables-1.4.x/iptables/.libs/xtables-multi $(INSTALLDIR)/iptables-1.4.x/usr/sbin/xtables-multi
 	cd $(INSTALLDIR)/iptables-1.4.x/usr/sbin && \
 		ln -sf xtables-multi iptables-save && \
 		ln -sf xtables-multi iptables-restore && \
+		ln -sf xtables-multi iptables-save && \
 		ln -sf xtables-multi iptables
 	install -d $(INSTALLDIR)/iptables-1.4.x/usr/lib/xtables
-	install -D iptables-1.4.x/libiptc/.libs/lib*.so $(INSTALLDIR)/iptables-1.4.x/usr/lib/
+	install -D iptables-1.4.x/libiptc/.libs/libiptc.so $(INSTALLDIR)/iptables-1.4.x/usr/lib/libiptc.so
+	install -D iptables-1.4.x/libiptc/.libs/libip4tc.so $(INSTALLDIR)/iptables-1.4.x/usr/lib/libip4tc.so
 	cd $(INSTALLDIR)/iptables-1.4.x/usr/lib && \
-		ln -sf libip4tc.so libip4tc.so.0 && \
-		ln -sf libip4tc.so libip4tc.so.0.0.0 && \
-		ln -sf libip6tc.so libip6tc.so.0 && \
-		ln -sf libip6tc.so libip6tc.so.0.0.0 && \
 		ln -sf libiptc.so  libiptc.so.0 && \
-		ln -sf libiptc.so  libiptc.so.0.0.0
+		ln -sf libiptc.so  libiptc.so.0.0.0 && \
+		ln -sf libip4tc.so libip4tc.so.0 && \
+		ln -sf libip4tc.so libip4tc.so.0.0.0
 	install -D iptables-1.4.x/libxtables/.libs/lib*.so $(INSTALLDIR)/iptables-1.4.x/usr/lib/
 	cd $(INSTALLDIR)/iptables-1.4.x/usr/lib && \
 		ln -sf libxtables.so libxtables.so.7 && \
@@ -1444,9 +1440,12 @@ iptables-1.4.x-install:
 
 ifeq ($(RTCONFIG_IPV6),y)
 	cd $(INSTALLDIR)/iptables-1.4.x/usr/sbin && \
-		ln -sf xtables-multi ip6tables-save && \
 		ln -sf xtables-multi ip6tables-restore && \
 		ln -sf xtables-multi ip6tables
+	install -D iptables-1.4.x/libiptc/.libs/libip6tc.so $(INSTALLDIR)/iptables-1.4.x/usr/lib/libip6tc.so
+	cd $(INSTALLDIR)/iptables-1.4.x/usr/lib && \
+		ln -sf libip6tc.so libip6tc.so.0 && \
+		ln -sf libip6tc.so libip6tc.so.0.0.0
 endif
 
 	$(STRIP) $(INSTALLDIR)/iptables-1.4.x/usr/sbin/xtables-multi
@@ -1455,6 +1454,7 @@ endif
 
 iptables-1.4.x-clean:
 	[ ! -f iptables-1.4.x/Makefile ] || $(MAKE) -C iptables-1.4.x KERNEL_DIR=$(LINUXDIR) distclean
+	@rm -f iptables-1.4.x/Makefile
 
 libnfnetlink/stamp-h1:
 # tomatoraf.com, Victek
@@ -1477,13 +1477,18 @@ libnfnetlink-install:
 
 upnp: nvram$(BCMEX) shared iptables
 
-miniupnpd/config.h:
-	cd miniupnpd && ./genconfig.sh --leasefile --vendorcfg
+miniupnpd/config.h: shared/version.h
+ifeq ($(RTCONFIG_IGD2),y)
+	cd miniupnpd && ./genconfig.sh --vendorcfg --leasefile --portinuse --pcp-peer --uda-version=1.1 $(if $(RTCONFIG_IPV6),--ipv6,) --igd2
+else
+	cd miniupnpd && ./genconfig.sh --vendorcfg --leasefile --portinuse --pcp-peer --uda-version=1.1
+endif
 
-miniupnpd: $(IPTABLES_TARGET) miniupnpd/config.h
+miniupnpd: $(IPTABLES) miniupnpd/config.h
 	@$(SEP)
 	cp -f ./shared/version.h miniupnpd/.
-	$(MAKE) -C miniupnpd -f Makefile.merlin $(PARALLEL_BUILD)
+	$(MAKE) -C miniupnpd -f Makefile.merlin $(PARALLEL_BUILD) \
+		IPTABLESPATH=$(TOP)/$(IPTABLES)
 
 miniupnpd-clean:
 	-@$(MAKE) -C miniupnpd -f Makefile.merlin clean
@@ -1492,6 +1497,17 @@ miniupnpd-clean:
 miniupnpd-install:
 	install -D miniupnpd/miniupnpd $(INSTALLDIR)/miniupnpd/usr/sbin/miniupnpd
 	$(STRIP) $(INSTALLDIR)/miniupnpd/usr/sbin/miniupnpd
+
+miniupnpc:
+	$(MAKE) -C miniupnpc
+
+miniupnpc-clean:
+	-@$(MAKE) -C miniupnpc clean
+
+miniupnpc-install:
+	install -D miniupnpc/upnpc-static $(INSTALLDIR)/miniupnpc/usr/sbin/miniupnpc
+	$(STRIP) $(INSTALLDIR)/miniupnpc/usr/sbin/miniupnpc
+
 
 # !!TB
 shared: busybox $(if $(RTCONFIG_QTN),libqcsapi_client)
@@ -1880,14 +1896,16 @@ p910nd:
 samba:
 samba3:
 	@$(MAKE) -C samba3
+samba-3.0.25b:
+	@$(MAKE) -C samba-3.0.25b $(PARALLEL_BUILD)
+samba36: libiconv-1.14
+	@$(MAKE) -C samba36 $(PARALLEL_BUILD)
 samba-3.5.8:
 	@$(MAKE) -C samba-3.5.8 $(PARALLEL_BUILD)
 
 #samba-3.5.8-install:
 #    install -D samba-3.5.8/source3/bin/libsmbclient.so $(INSTALLDIR)/samba-3.5.8/usr/lib/libsmbclient.so
 #    $(STRIP) $(INSTALLDIR)/samba-3.5.8/usr/lib/libsmbclient.so
-
-
 
 nvram$(BCMEX): shared
 
@@ -2107,7 +2125,7 @@ wpa_supplicant-clean:
 protect_srv/stamp-h1:
 	touch $@
 
-protect_srv: protect_srv/stamp-h1
+protect_srv: shared nvram$(BCMEX) protect_srv/stamp-h1
 	$(MAKE) -C protect_srv
 
 protect_srv-install: protect_srv
@@ -2585,7 +2603,7 @@ igmpproxy-clean:
 	-@$(MAKE) -C igmpproxy/src clean
 	@rm -f igmpproxy/stamp-h1
 
-wps$(BCMEX): nvram$(BCMEX) shared
+wps$(BCMEX): nvram$(BCMEX) shared libupnp
 ifeq ($(RTCONFIG_WPS),y)
 	-rm -rf $(SRCBASE)/../src/wps
 	-ln -s $(SRCBASE)/../$(SRCBASEDIR)/wps $(SRCBASE)/../src/wps
@@ -2926,6 +2944,29 @@ libxml2-clean:
 	-@$(MAKE) -C libxml2 clean
 	@rm -f libxml2/stamp-h1
 
+#libiconv-1.14
+libiconv-1.14/stamp-h1:
+	cd libiconv-1.14 && \
+	$(CONFIGURE) CC=$(CC) --prefix=$(TOP)/libiconv-1.14/out
+	touch $@
+
+libiconv-1.14:libiconv-1.14/stamp-h1
+	@$(MAKE) -C libiconv-1.14
+
+libiconv-1.14-install: libiconv-1.14
+	@$(SEP)
+	install -D libiconv-1.14/lib/.libs/libiconv.so.2.5.1 $(INSTALLDIR)/libiconv-1.14/usr/lib/libiconv.so.2.5.1
+	$(STRIP) $(INSTALLDIR)/libiconv-1.14/usr/lib/libiconv.so.2.5.1
+	cd $(INSTALLDIR)/libiconv-1.14/usr/lib && ln -sf libiconv.so.2.5.1 libiconv.so && ln -sf libiconv.so.2.5.1 libiconv.so.2
+ifeq ($(RTCONFIG_USB_SMS_MODEM),y)
+	install -D libiconv-1.14/src/.libs/iconv_no_i18n $(INSTALLDIR)/libiconv-1.14/usr/bin/iconv
+	$(STRIP) $(INSTALLDIR)/libiconv-1.14/usr/bin/iconv
+endif
+
+libiconv-1.14-clean:
+	-@$(MAKE) -C libiconv-1.14 clean
+	@rm -f libiconv-1.14/stamp-h1
+
 #add by alan 
 #add install neon 
 neon/stamp-h1 neon/config.h:
@@ -2961,30 +3002,32 @@ webdav_client$(BCMEX)-clean:
 
 #add by gauss
 #add install libcurl
-curl-7.21.7/stamp-h1:
-	cd curl-7.21.7 && \
-	$(CONFIGURE) CC=$(CC) \
-	--prefix=/usr --bindir=/usr/sbin --libdir=/usr/lib \
-	--enable-http --with-ssl=$(TOP)/openssl LDFLAGS="-ldl" \
-	$(if $(RTCONFIG_IPV6),--enable-ipv6) \
+curl: curl/Makefile
+	@$(MAKE) -C $@ $(PARALLEL_BUILD)
+
+curl/Makefile: curl/configure
+	@cd curl && CC=$(CC) \
+	CFLAGS="-Os -Wall -ffunction-sections -fdata-sections" \
+	./$(CONFIGURE) --prefix=/usr --bindir=/usr/sbin --libdir=/usr/lib \
+	--enable-http --with-ssl=$(TOP)/openssl/ssl \
+	$(if $(RTCONFIG_IPV6),--enable-ipv6,--disable-ipv6) \
 	--disable-gopher --disable-dict --disable-telnet \
-	--with-ca-bundle=/rom/ca-bundle.crt
-	touch $@
+	--disable-proxy --disable-manual --disable-libcurl-option \
+	--with-ca-bundle=/rom/ca-bundle.crt \
+	CPPFLAGS='-I$(TOP)/openssl/include' \
+	LDFLAGS='$(LDFLAGS) -L$(TOP)/openssl' LIBS='-lcrypto -lssl -ldl'
 
-curl-7.21.7: curl-7.21.7/stamp-h1
-	@$(MAKE) -C curl-7.21.7 $(PARALLEL_BUILD)
-
-curl-7.21.7-install: curl-7.21.7
+curl-install: curl
 	@$(SEP)
-	install -D curl-7.21.7/lib/.libs/libcurl.so.4.2.0 $(INSTALLDIR)/curl-7.21.7/usr/lib/libcurl.so.4.2.0
-	$(STRIP) $(INSTALLDIR)/curl-7.21.7/usr/lib/libcurl.so.4.2.0
-	cd $(INSTALLDIR)/curl-7.21.7/usr/lib && ln -sf libcurl.so.4.2.0 libcurl.so && ln -sf libcurl.so.4.2.0 libcurl.so.4
-	install -D curl-7.21.7/src/.libs/curl $(INSTALLDIR)/curl/usr/sbin/curl
+	install -D curl/lib/.libs/libcurl.so.4.4.0 $(INSTALLDIR)/curl/usr/lib/libcurl.so.4.4.0
+	$(STRIP) $(INSTALLDIR)/curl/usr/lib/libcurl.so.4.4.0
+	cd $(INSTALLDIR)/curl/usr/lib && ln -sf libcurl.so.4.4.0 libcurl.so && ln -sf libcurl.so.4.4.0 libcurl.so.4
+	install -D curl/src/.libs/curl $(INSTALLDIR)/curl/usr/sbin/curl
 	$(STRIP) $(INSTALLDIR)/curl/usr/sbin/curl
-	
-curl-7.21.7-clean:
-	-@$(MAKE) -C curl-7.21.7 clean
-	@rm -f curl-7.21.7/stamp-h1
+
+curl-clean:
+	[ ! -f curl/Makefile ] || $(MAKE) -C curl clean
+	@rm -f curl/Makefile
 
 #asuswebstorage
 asuswebstorage$(BCMEX):
@@ -3166,48 +3209,48 @@ netatalk-3.0.5-clean:
 	-@$(MAKE) -C netatalk-3.0.5 clean
 	@rm -f netatalk-3.0.5/stamp-h1
 
-#expat-2.0.1
-expat-2.0.1/stamp-h1:
-	cd $(TOP)/expat-2.0.1 && \
-	$(CONFIGURE) --build=i686-linux --prefix=$(INSTALLDIR)/expat-2.0.1/usr
+#expat-2.2.0
+expat-2.2.0/stamp-h1:
+	cd $(TOP)/expat-2.2.0 && \
+	$(CONFIGURE) --build=i686-linux --prefix=$(INSTALLDIR)/expat-2.2.0/usr
 	touch $@
 
-expat-2.0.1: expat-2.0.1/stamp-h1
+expat-2.2.0: expat-2.2.0/stamp-h1
 	@$(SEP)
-	@$(MAKE) -C expat-2.0.1 $(PARALLEL_BUILD)
+	@$(MAKE) -C expat-2.2.0 $(PARALLEL_BUILD)
 
-expat-2.0.1-install: expat-2.0.1
-	install -D expat-2.0.1/.libs/libexpat.so.1.5.2 $(INSTALLDIR)/expat-2.0.1/usr/lib/libexpat.so.1.5.2
-	$(STRIP) $(INSTALLDIR)/expat-2.0.1/usr/lib/libexpat.so.1.5.2
-	cd $(INSTALLDIR)/expat-2.0.1/usr/lib && ln -sf libexpat.so.1.5.2 libexpat.so.1
+expat-2.2.0-install: expat-2.2.0
+	install -D expat-2.2.0/.libs/libexpat.so.1.6.2 $(INSTALLDIR)/expat-2.2.0/usr/lib/libexpat.so.1.6.2
+	$(STRIP) $(INSTALLDIR)/expat-2.2.0/usr/lib/libexpat.so.1.6.2
+	cd $(INSTALLDIR)/expat-2.2.0/usr/lib && ln -sf libexpat.so.1.6.2 libexpat.so.1
 
-expat-2.0.1-clean:
-	-@$(MAKE) -C expat-2.0.1 clean
-	@rm -f expat-2.0.1/stamp-h1
+expat-2.2.0-clean:
+	-@$(MAKE) -C expat-2.2.0 clean
+	@rm -f expat-2.2.0/stamp-h1
 
-#avahi-0.6.31
-avahi-0.6.31/stamp-h1: shared nvram$(BCMEX) expat-2.0.1 libdaemon
-	cd $(TOP)/avahi-0.6.31 && \
-	$(CONFIGURE) LDFLAGS="-L$(TOP)/expat-2.0.1/.libs -ldl -lpthread" CFLAGS="-I$(TOP)/expat-2.0.1/lib -I$(TOP)/shared -I$(SRCBASE)/include" --prefix=$(INSTALLDIR)/avahi-0.6.31/usr --with-distro=archlinux --disable-glib --disable-gobject --disable-qt3 --disable-qt4 --disable-gtk --disable-dbus --disable-expat --disable-gdbm --disable-python --disable-pygtk --disable-python-dbus --disable-mono --disable-monodoc --disable-gtk3 --with-xml=none  LIBDAEMON_LIBS="-L$(TOP)/libdaemon/libdaemon/.libs -ldaemon -L$(TOP)/nvram$(BCMEX) -lnvram -L$(TOP)/shared -lshared $(if $(RTCONFIG_QTN),-L$(TOP)/libqcsapi_client -lqcsapi_client)" LIBDAEMON_CFLAGS="-I$(TOP)/libdaemon" --disable-autoipd --with-xml=expat --disable-stack-protector --with-avahi-user="admin" --with-avahi-group="root"
+#avahi-0.6.32
+avahi-0.6.32/stamp-h1: shared nvram$(BCMEX) expat-2.2.0 libdaemon
+	cd $(TOP)/avahi-0.6.32 && \
+	$(CONFIGURE) LDFLAGS="-L$(TOP)/expat-2.2.0/.libs -ldl -lpthread" CFLAGS="-I$(TOP)/expat-2.2.0/lib -I$(TOP)/shared -I$(SRCBASE)/include" --prefix=$(INSTALLDIR)/avahi-0.6.32/usr --with-distro=archlinux --disable-glib --disable-gobject --disable-qt3 --disable-qt4 --disable-gtk --disable-dbus --disable-expat --disable-gdbm --disable-python --disable-pygtk --disable-python-dbus --disable-mono --disable-monodoc --disable-gtk3 --with-xml=none  LIBDAEMON_LIBS="-L$(TOP)/libdaemon/libdaemon/.libs -ldaemon -L$(TOP)/nvram$(BCMEX) -lnvram -L$(TOP)/shared -lshared $(if $(RTCONFIG_QTN),-L$(TOP)/libqcsapi_client -lqcsapi_client)" LIBDAEMON_CFLAGS="-I$(TOP)/libdaemon" --disable-autoipd --with-xml=expat --disable-stack-protector --with-avahi-user="admin" --with-avahi-group="root"
 	touch $@
 
-avahi-0.6.31: avahi-0.6.31/stamp-h1
+avahi-0.6.32: avahi-0.6.32/stamp-h1
 	@$(SEP)
-	@$(MAKE) -C avahi-0.6.31 $(PARALLEL_BUILD)
+	@$(MAKE) -C avahi-0.6.32 $(PARALLEL_BUILD)
 
-avahi-0.6.31-install: avahi-0.6.31
-	install -D avahi-0.6.31/avahi-daemon/.libs/avahi-daemon $(INSTALLDIR)/avahi-0.6.31/usr/sbin/avahi-daemon
-	install -D avahi-0.6.31/avahi-common/.libs/libavahi-common.so.3.5.3 $(INSTALLDIR)/avahi-0.6.31/usr/lib/libavahi-common.so.3.5.3
-	install -D avahi-0.6.31/avahi-core/.libs/libavahi-core.so.7.0.2 $(INSTALLDIR)/avahi-0.6.31/usr/lib/libavahi-core.so.7.0.2
-	$(STRIP) $(INSTALLDIR)/avahi-0.6.31/usr/sbin/avahi-daemon
-	$(STRIP) $(INSTALLDIR)/avahi-0.6.31/usr/lib/libavahi-common.so.3.5.3
-	$(STRIP) $(INSTALLDIR)/avahi-0.6.31/usr/lib/libavahi-core.so.7.0.2
-	cd $(INSTALLDIR)/avahi-0.6.31/usr/lib && ln -sf libavahi-common.so.3.5.3 libavahi-common.so.3
-	cd $(INSTALLDIR)/avahi-0.6.31/usr/lib && ln -sf libavahi-core.so.7.0.2 libavahi-core.so.7
+avahi-0.6.32-install: avahi-0.6.32
+	install -D avahi-0.6.32/avahi-daemon/.libs/avahi-daemon $(INSTALLDIR)/avahi-0.6.32/usr/sbin/avahi-daemon
+	install -D avahi-0.6.32/avahi-common/.libs/libavahi-common.so.3.5.3 $(INSTALLDIR)/avahi-0.6.32/usr/lib/libavahi-common.so.3.5.3
+	install -D avahi-0.6.32/avahi-core/.libs/libavahi-core.so.7.0.2 $(INSTALLDIR)/avahi-0.6.32/usr/lib/libavahi-core.so.7.0.2
+	$(STRIP) $(INSTALLDIR)/avahi-0.6.32/usr/sbin/avahi-daemon
+	$(STRIP) $(INSTALLDIR)/avahi-0.6.32/usr/lib/libavahi-common.so.3.5.3
+	$(STRIP) $(INSTALLDIR)/avahi-0.6.32/usr/lib/libavahi-core.so.7.0.2
+	cd $(INSTALLDIR)/avahi-0.6.32/usr/lib && ln -sf libavahi-common.so.3.5.3 libavahi-common.so.3
+	cd $(INSTALLDIR)/avahi-0.6.32/usr/lib && ln -sf libavahi-core.so.7.0.2 libavahi-core.so.7
 
-avahi-0.6.31-clean:
-	-@$(MAKE) -C avahi-0.6.31 clean
-	@rm -f avahi-0.6.31/stamp-h1
+avahi-0.6.32-clean:
+	-@$(MAKE) -C avahi-0.6.32 clean
+	@rm -f avahi-0.6.32/stamp-h1
 
 madwimax-0.1.1/stamp-h1:
 	cd $(TOP)/madwimax-0.1.1 && \
@@ -3235,25 +3278,6 @@ ufsd: kernel_header kernel
 
 ufsd-install: ufsd
 	@$(MAKE) -C ufsd install INSTALLDIR=$(INSTALLDIR)/ufsd
-
-wol/stamp-h1:
-	cd $(TOP)/wol && jm_cv_func_working_malloc=yes \
-	CFLAGS="-Os -Wall $(EXTRACFLAGS) -ffunction-sections -fdata-sections" \
-	$(CONFIGURE) --host=mips --prefix=$(INSTALLDIR)/wol CC=mipsel-uclibc-gcc STRIP=mipsel-uclibc-strip \
-	AR=mipsel-uclibc-ar LD=mipsel-uclibc-ld NM=mipsel-uclibc-nm RANLIB=mipsel-uclibc-ranlib
-	@touch $@
-
-wol: wol/stamp-h1
-	@$(SEP)
-	jm_cv_func_working_malloc=yes $(MAKE) -C $@
-
-wol-clean:
-	-@$(MAKE) -C wol distclean
-	@rm -f wol/stamp-h1
-
-wol-install: wol
-	install -D wol/src/wol $(INSTALLDIR)/wol/usr/sbin/wol
-	$(STRIP) $(INSTALLDIR)/wol/usr/sbin/wol
 
 netstat-nat-clean:
 	-@$(MAKE) -C netstat-nat clean
@@ -3354,12 +3378,13 @@ ipset_arm/stamp-h1: libmnl
 	CFLAGS="-Os -Wall $(EXTRACFLAGS) -ffunction-sections -fdata-sections" \
 	LDFLAGS="-ffunction-sections -fdata-sections -Wl,--gc-sections" \
 	libmnl_CFLAGS="-I$(TOP)/libmnl/staged/usr/include" \
-	libmnl_LIBS="-L$(TOP)/libmnl/staged/usr/lib -l:libmnl.so" \
-	$(CONFIGURE) --prefix=/usr --with-kmod=no
+	libmnl_LIBS="-L$(TOP)/libmnl/staged/usr/lib -lmnl" \
+	$(CONFIGURE) --prefix=/usr --with-kmod=yes --with-kbuild=$(LINUXDIR)
 	touch ipset_arm/stamp-h1
 
 ipset_arm: ipset_arm/stamp-h1
 	$(MAKE) -C ipset_arm
+	$(MAKE) -C ipset_arm modules
 
 ipset_arm-install: ipset_arm
 	install -D ipset_arm/src/ipset $(INSTALLDIR)/ipset_arm/usr/sbin/ipset
@@ -3373,6 +3398,7 @@ ipset_arm-install: ipset_arm
 
 ipset_arm-clean:
 	-@$(MAKE) -C ipset_arm clean
+	-@$(MAKE) -C ipset_arm modules_clean
 	-@rm -rf ipset_arm/Makefile ipset_arm/stamp-h1
 
 ncurses/Makefile:

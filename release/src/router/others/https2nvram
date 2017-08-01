@@ -2,12 +2,19 @@
 
 https_var="https_crt_file"
 https_file="cert.tgz"
-https_dir="/jffs/https/"
+https_jffs="/jffs/ssl/"
+https_jffs_old="/jffs/https/"
+https_dir=""
 OLDIF=IFS; IFS=" ";
 
 err=0
 
 VARNAME=$https_var;
+    if [ -d "${https_jffs}" ]; then
+	https_dir=${https_jffs}
+    else
+	https_dir=${https_jffs_old}
+    fi
     FILEPATH=${https_dir}${https_file}
     printf "%-48s" "Processing $FILEPATH"
     VALUE=$(head -c 8192 $FILEPATH | openssl enc -base64 | tr -d '\n')
@@ -23,7 +30,7 @@ VARNAME=$https_var;
 IFS=OLDIFS;
 if [ $err -eq 0 ]; then
 	nvram commit
-	rm -rf $https_dir
+	rm -rf ${https_dir}
 	echo "Please reboot via web gui"
 else
 	echo "Errors found!"

@@ -3351,11 +3351,13 @@ void start_upnp(void)
 
 				fprintf(f,
 					"ext_ifname=%s\n"
-					"listening_ip=%s/%s\n"
+					"listening_ip=%s\n"
 					"port=%d\n"
 					"enable_upnp=%s\n"
 					"enable_natpmp=%s\n"
 					"secure_mode=%s\n"
+					"lease_file=/var/lib/misc/upnp.leases\n"
+					"upnp_nat_postrouting_chain=PUPNP\n"
 					"upnp_forward_chain=FUPNP\n"
 					"upnp_nat_chain=VUPNP\n"
 					"notify_interval=%d\n"
@@ -3366,7 +3368,7 @@ void start_upnp(void)
 					"\n"
 					,
 					get_wan_ifname(wan_primary_ifunit()),
-					lanip, lanmask,
+					nvram_safe_get("lan_ifname"),	// was lanip, lanmask,
 					upnp_port,
 					upnp_enable ? "yes" : "no",	// upnp enable
 					upnp_mnp_enable ? "yes" : "no",	// natpmp enable
@@ -3417,9 +3419,9 @@ void start_upnp(void)
 				    (ports[3] = nvram_get_int("upnp_max_port_ext")) > 0) {
 					fprintf(f,
 						"allow %d-%d %s/%s %d-%d\n",
-						ports[0], ports[1],
+						ports[2], ports[3],
 						lanip, lanmask,
-						ports[2], ports[3]
+						ports[0], ports[1]
 					);
 				}
 				else {
@@ -3452,12 +3454,20 @@ TRACE_PT("config 5\n");
 
 void stop_upnp(void)
 {
+	int upnp_flush = 0;
+
 	if (getpid() != 1) {
 		notify_rc("stop_upnp");
 		return;
 	}
 
 	killall_tk("miniupnpd");
+
+	upnp_flush = nvram_get_int("upnp_flush");
+	if (upnp_flush > 0)
+		unlink("/var/lib/misc/upnp.leases"); //clear existing leases
+	if (upnp_flush == 1)
+		nvram_set_int("upnp_flush", 0); //reset flag if single clear
 }
 
 int
@@ -4440,6 +4450,9 @@ again:
 
 	if (strcmp(script, "reboot") == 0 || strcmp(script,"rebootandrestore")==0) {
 		g_reboot = 1;
+		run_custom_script("services-stop", NULL);
+		nvram_set("login_ip_restart", nvram_safe_get("login_ip"));  //save ip initiating reboot
+		nvram_commit();
 		stop_wan();
 #ifdef RTCONFIG_USB
 		if (get_model() == MODEL_RTN53){
@@ -4465,6 +4478,7 @@ again:
 	}
 	else if (strcmp(script, "resetdefault") == 0) {
 		g_reboot = 1;
+		run_custom_script("services-stop", NULL);
 		stop_wan();
 #ifdef RTCONFIG_USB
 		if (get_model() == MODEL_RTN53){
@@ -4485,12 +4499,16 @@ again:
 	}
 	else if (strcmp(script, "all") == 0) {
 		sleep(2); // wait for all httpd event done
+		run_custom_script("shutdown", NULL);
 		stop_lan_port();
 		start_lan_port(6);
 		kill(1, SIGTERM);
 	}
 	else if(strcmp(script, "upgrade") == 0) {
 		if(action&RC_SERVICE_STOP) {
+			run_custom_script("services-stop", NULL);
+			nvram_set("login_ip_restart", nvram_safe_get("login_ip"));  //save ip initiating upgrade
+			nvram_commit();
 #ifdef RTCONFIG_WIRELESSREPEATER
 		if(nvram_get_int("sw_mode") == SW_MODE_REPEATER)
 			stop_wlcconnect();

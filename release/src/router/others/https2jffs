@@ -2,7 +2,8 @@
 
 https_var="https_crt_file"
 https_file="cert.tgz"
-https_jffs="/jffs/https/"
+https_jffs="/jffs/ssl/"
+https_jffs_old="/jffs/https/"
 https_certs="/etc/cert.pem /etc/key.pem"
 OLDIF=IFS; IFS=" ";
 
@@ -12,12 +13,19 @@ err=0
 VARNAME=$https_var
     FILEPATH="${https_jffs}${https_file}"
     tar -C / -czf $FILEPATH ${https_certs} > /dev/null 2>&1
+    for fn in ${https_certs}
+    do
+	cp -af $fn ${https_jffs}
+    done
     printf "%-25s" "Processing $VARNAME"
     if [ -f $FILEPATH ]; then
 	echo -e "\tDone"
     else
 	echo -e "\tCould not create saved cert"
 	err=1
+    fi
+    if [ -d "${https_jffs_old}" ]; then
+	rm -rf ${https_jffs_old}
     fi
 
 IFS=OLDIFS;

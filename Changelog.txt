@@ -4,6 +4,97 @@ NOTE: [*] Indicated fork unique change
 
 Changelog
 ---------
+374.43_2-26E3j9527  (20-July-2017)
+* CHANGED: ipset_arm: update rcu locking in delete for settype hash
+* CHANGED: ipset_arm: update rcu locking in add for settype hash
+* CHANGED: ipset_arm: take rcu lock when expiring entries from settype hash
+* CHANGED: ipset_arm: update ip_set_comment.h to eliminate unneccessary use of kfree_rcu
+* CHANGED: ipset_arm: update rcu functions in compat include
+* CHANGED: webui: allow for 9999 hours of connect time in wireless log
+* FIXED: openvpn: (upstream) undo cipher push in client options state if cipher is rejected
+
+
+374.43_2-26E2j9527  (15-July-2017)
+* FIXED: services: run services-stop during reboot, restore and upgrade prior to stopping usb
+* FIXED: iptables: fix iptables-save for trigger rules
+* FIXED: firewall: fix rule generation for trigger port ranges
+* CHANGED: shared: add replace_char function to strings.c
+* FIXED: ipset_arm: take rcu lock when flushing settype hash
+* CHANGED: kernel: update include Kbuild for netfilter ipset_arm
+* CHANGED: ipset_arm: update kernel to ipset 6.32 settypes
+* CHANGED: expat: remove release 2.0.1 (replaced)
+* CHANGED: make: update for expat 2.2.0
+* CHANGED: expat: install version 2.2.0
+* CHANGED: watchdog: change qos check to reduce frequency, use notify_rc
+* FIXED: dnsmasq: (upstream) try other servers if first returns REFUSED when --strict-order active
+* CHANGED: httpd: don't force re-auth after reboot or firmware upgrade
+* CHANGED: others: change directory for saved https certs for Merlin consistency
+* CHANGED: openvpn: revert lzo to pre-packaged library version
+* CHANGED: httpd: cover case of orphan session on restart/reboot
+* CHANGED: firewall: update default rules generation/apply
+* FIXED: firewall: prevent duplicate openvpn firewall rules
+* CHANGED: openvpn: add firewall rule for vpn client port
+* CHANGED: openvpn: support 'always', 'only client active' options for block tunnel
+* CHANGED: openvpn: add tunnel down blocking state to status page
+* CHANGED: openvpn: reset client enabled status on reboot
+* CHANGED: openvpn: block routed clients not enforced if vpn is manually disabled
+* CHANGED: ssh: add dropbear inactivity timeout
+- CHANGED: openvpn: (backport) better handle misconfigurations where we're missing a route_vpn_gateway
+- FIXED: openvpn: (backport) put redirect-gateway def1 into the custom area if found in an imported ovpn
+* FIXED: openvpn: add persist-tun if present in imported ovpn file
+* CHANGED: httpd: set disconnect timeout to allow for gui operations
+* CHANGED: httpd: replace isLogout with ip address aware re-authentication
+* CHANGED: httpd: support multiple debug flags for httpd
+* CHANGED: httpd: force authorization after auto/forced logout
+* CHANGED: upnp: add gui option to clear existing leases
+* CHANGED: httpd: add debug switch for httpd diagnostic logging
+* CHANGED: others: also copy individual certs when moving https certs to jffs
+- FIXED: firewall: (backport) fix upnp rules in dual wan mode
+* CHANGED: firewall: add support for nat-loopback in dual wan mode
+- CHANGED: curl: (backport) disable proxy, builtin manual and libcurl output options
+- CHANGED: wol: (backport) remove since now using busybox ether-wake
+* CHANGED: webui: add link to available beta release downloads
+* CHANGED: make: update for generic curl; add symlink for curl-7.21.7
+* CHANGED: curl: update to 7.54
+* CHANGED: curl: remove release 7.21.7
+- CHANGED: firewall: (backport) only restart upnpd if already active
+- CHANGED: samba36: (backport) add lowercase/uppercase codepage support
+- CHANGED: firewall: (backport) don't specify WAN interface for sshd accept rule
+* CHANGED: webui: support select for individual openvpn clients
+* CHANGED: avahi: update to 0.6.32
+* CHANGED: ipset: update to 6.32 for arm
+* CHANGED: protect_srv: (backport) update to 380.7627
+* CHANGED: dropbear: missing update for protect-srv support after 380.7627 merge
+- CHANGED: dropbear: (backport) update to 2017.75
+- CHANGED: busybox: (backport) drop modules.dep path hack
+- CHANGED: nano: (backport) updated to 2.8.4
+* CHANGED: dnscrypt: update to 1.9.5
+- CHANGED: samba: (backport) remove unused release 3.6.13
+- FIXED: samba36: replace broken getifaddrs() function with a working one
+- CHANGED: samba358: make the getifaddrs patch use Samba's own function replacement mechanism instead of patching the main code
+* CHANGED: webui: add option for smb2 protocol enable
+* FIXED: samba36: remove deprecated null password from config
+* CHANGED: samba36: update smb.conf generation & start
+- CHANGED: samba36: (backport) build support for samba36
+- CHANGED: samba36: (backport) add libconv-1.14
+- CHANGED: samba36: (backport) functional code for release 3.6.25
+* CHANGED: webui: update port forwarding log page with time left and description
+- CHANGED: firewall: restrict PUPNP chain to wan_if
+* CHANGED: services: new parameters for miniupnpd 2.0
+* CHANGED: firewall: add new chains for miniupnpd 2.0
+* CHANGED: build: add upnpigd2 to configuration setup
+* CHANGED: make: update for miniupnpd 2.0
+- CHANGED: miniupnpd: update to 2.0
+
+
+374.43_2-25E8j9527  (27-June-2017)
+- CHANGED: openssl: update to 1.0.2l
+* CHANGED: openvpn: update to 2.4.3
+- CHANGED: entware: (backport) update entware-setup.sh
+* FIXED: httpd-web: fix saving of jffs backup
+- FIXED: services: fix miniupnpd allowed ports configuration
+
+
 374.43_2-25E7j9527  (15-June-2017)
 * CHANGED: webui: change IPTV action_script to restart_wan_if if ipv6 is enabled
 * CHANGED: watchdog: changes to support httpd_check with CVE-2017-5892
